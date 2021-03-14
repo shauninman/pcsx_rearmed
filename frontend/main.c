@@ -128,6 +128,7 @@ void emu_set_default_config(void)
 	Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
 	Config.PsxAuto = 1;
 
+	pl_rearmed_cbs.frameskip_type = 0;
 	pl_rearmed_cbs.thread_rendering = 0;
 
 	pl_rearmed_cbs.gpu_neon.allow_interlace = 2; // auto
@@ -164,6 +165,13 @@ void emu_set_default_config(void)
 #endif
 	new_dynarec_hacks = 0;
 	cycle_multiplier = 200;
+
+#ifdef TRIMUI
+	pl_rearmed_cbs.gpu_unai.scale_hires = 1;
+	pl_rearmed_cbs.frameskip_type = 1; // audio-based
+	spu_config.iTempo = 0;
+	cycle_multiplier = 175;
+#endif
 
 	in_type[0] = PSE_PAD_TYPE_STANDARD;
 	in_type[1] = PSE_PAD_TYPE_STANDARD;
