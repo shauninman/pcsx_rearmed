@@ -15,6 +15,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/mman.h>
@@ -158,7 +159,7 @@ void plat_minimize(void)
 {
 }
 
-#define make_flip_func(name, blitfunc)																								\
+#define make_flip_func(name, scale, blitfunc)																					\
 static void name(int doffs, const void *vram_, int w, int h, int sstride, int bgr24)	\
 {																																											\
 	const unsigned short *vram = vram_;																									\
@@ -177,16 +178,20 @@ static void name(int doffs, const void *vram_, int w, int h, int sstride, int bg
 				 vram += psx_step * 1024,																											\
 				 dst += dst_stride,																														\
 				 conv += dst_stride)  {																												\
-		convertfunc(conv, vram, len);																											\
-		blitfunc(dst, conv, dst_stride);																									\
+		if (scale) {																																			\
+			convertfunc(conv, vram, len);																										\
+			blitfunc(dst, conv, dst_stride);																								\
+	  } else {																																					\
+			convertfunc(dst, vram, len);																										\
+		}																																									\
 	}																																										\
 	SDL_UnlockSurface(screen);																													\
 }
 
-make_flip_func(raw_blit_soft, memcpy)
-make_flip_func(raw_blit_soft_368, blit320_368)
-make_flip_func(raw_blit_soft_512, blit320_512)
-make_flip_func(raw_blit_soft_640, blit320_640)
+make_flip_func(raw_blit_soft,     false, memcpy)
+make_flip_func(raw_blit_soft_368, true,  blit320_368)
+make_flip_func(raw_blit_soft_512, true,  blit320_512)
+make_flip_func(raw_blit_soft_640, true,  blit320_640)
 
 void *plat_gvideo_set_mode(int *w_, int *h_, int *bpp_)
 {
@@ -301,8 +306,6 @@ void plat_sdl_event_handler(void *event_)
 
 void plat_init(void)
 {
-	int ret;
-
 	if (SDL_WasInit(SDL_INIT_EVERYTHING)) {
 		SDL_InitSubSystem(SDL_INIT_VIDEO);
 	}
