@@ -37,7 +37,7 @@ check_define_val()
 # setting options to "yes" or "no" will make that choice default,
 # "" means "autodetect".
 
-platform_list="generic pandora maemo caanoo libretro"
+platform_list="generic pandora maemo caanoo libretro trimui"
 platform="generic"
 builtin_gpu_list="peops unai neon"
 builtin_gpu=""
@@ -106,6 +106,18 @@ set_platform()
     drc_cache_base="yes"
     optimize_arm926ej="yes"
     need_warm="yes"
+    ;;
+  trimui)
+    ARCH="arm"
+    sound_drivers="sdl"
+    have_tslib="no"
+    have_chd="yes"
+    ram_fixed="yes"
+    drc_cache_base="no" # usually works, sometimes not
+    optimize_arm926ej="yes"
+    need_warm="no"
+    have_arm_neon="no"
+    plugins=""
     ;;
   libretro)
     sound_drivers="libretro"
@@ -569,7 +581,7 @@ if [ "$have_gles" = "yes" ]; then
   echo "LDLIBS_GLES = $LDLIBS_GLES" >> $config_mak
 fi
 if [ "$enable_dynarec" = "yes" ]; then
-  echo "USE_DYNAREC = 1" >> $config_mak
+  echo "DYNAREC = ari64" >> $config_mak
 fi
 if [ "$drc_cache_base" = "yes" ]; then
   echo "DRC_CACHE_BASE = 1" >> $config_mak
@@ -577,8 +589,11 @@ fi
 if [ "$have_c64x_dsp" = "yes" ]; then
   echo "HAVE_C64_TOOLS = 1" >> $config_mak
 fi
+if [ "$have_chd" = "yes" ]; then
+  echo "HAVE_CHD = 1" >> $config_mak
+fi
 
 # use pandora's skin (for now)
-test -e skin || ln -s frontend/pandora/skin skin
+# test -e skin || ln -s frontend/pandora/skin skin
 
 # vim:shiftwidth=2:expandtab

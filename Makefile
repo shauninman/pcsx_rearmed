@@ -3,6 +3,7 @@
 # default stuff goes here, so that config can override
 TARGET ?= pcsx
 CFLAGS += -Wall -Iinclude -ffast-math
+
 ifeq ($(DEBUG), 1)
 CFLAGS += -O0 -ggdb
 else
@@ -15,6 +16,7 @@ endif
 CXXFLAGS += $(CFLAGS)
 #DRC_DBG = 1
 #PCNT = 1
+PICO_HOME_DIR=".pcsx"
 
 all: config.mak target_ plugins_
 
@@ -42,6 +44,16 @@ EXTRA_LDFLAGS ?= -Wl,-Map=$@.map
 LDLIBS += $(MAIN_LDLIBS)
 ifdef PCNT
 CFLAGS += -DPCNT
+endif
+
+ifeq ($(PROFILE), YES)
+CFLAGS	+= -fprofile-generate=./profile
+else ifeq ($(PROFILE), APPLY)
+CFLAGS	+= -fprofile-use -fprofile-dir=./profile -fbranch-probabilities
+endif
+
+ifeq ($(PROFILE), YES)
+LDFLAGS	+= -lgcov
 endif
 
 # core
@@ -312,6 +324,20 @@ frontend/main.o frontend/menu.o: CFLAGS += -include frontend/320240/ui_gp2x.h
 USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
 endif
+ifeq "$(PLATFORM)" "trimui"
+SYSROOT     := $(shell $(CC) --print-sysroot)
+SDL_CFLAGS  := $(shell $(SYSROOT)/usr/bin/sdl-config --cflags)
+SDL_LDFLAGS := $(shell $(SYSROOT)/usr/bin/sdl-config --libs)
+OBJS += frontend/libpicofe/in_sdl.o
+OBJS += frontend/libpicofe/linux/in_evdev.o
+OBJS += frontend/plat_trimui.o frontend/blit320.o
+frontend/main.o frontend/menu.o: CFLAGS += -include frontend/menu_trimui.h
+USE_PLUGIN_LIB = 1
+USE_FRONTEND = 1
+CFLAGS += -DGPULIB_USE_MMAP -DGPU_UNAI_USE_INT_DIV_MULTINV -fomit-frame-pointer -ffast-math -ffunction-sections -fsingle-precision-constant
+CFLAGS += $(SDL_CFLAGS) -DTRIMUI
+LDFLAGS += $(SDL_LDFLAGS) -flto -fwhole-program
+endif
 ifeq "$(PLATFORM)" "maemo"
 OBJS += maemo/hildon.o maemo/main.o maemo/maemo_xkb.o frontend/pl_gun_ts.o
 maemo/%.o: maemo/%.c
@@ -470,4 +496,15 @@ rel: pcsx $(PLUGINS) \
 	cp ./lib/libbz2.so.1 out/pcsx_rearmed/lib/
 	mkdir out/pcsx_rearmed/bios/
 	cd out && zip -9 -r ../pcsx_rearmed_$(VER)_caanoo.zip *
+endif
+ifeq "$(PLATFORM)" "trimui"
+VER = v1.9
+rel: pcsx $(PLUGINS) \
+		readme.txt COPYING
+	rm -rf out
+	mkdir -p out/pcsx_rearmed/
+	cp -r $^ out/pcsx_rearmed/
+	mkdir out/pcsx_rearmed/lib/
+	mkdir out/pcsx_rearmed/bios/
+	cd out && zip -9 -r ../pcsx_rearmed_$(VER)_trimui.zip *
 endif

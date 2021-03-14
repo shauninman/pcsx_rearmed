@@ -123,6 +123,7 @@ static int bios_sel, gpu_plugsel, spu_plugsel;
 #define MENU_SHOW_MINIMIZE 0
 #define MENU_SHOW_FULLSCREEN 1
 #define MENU_SHOW_VOLUME 0
+#define MENU_SHOW_DISPLAY 1
 #endif
 
 static int min(int x, int y) { return x < y ? x : y; }
@@ -2515,9 +2516,6 @@ void menu_init(void)
 		exit(1);
 	}
 
-	emu_make_path(buff, "skin/background.png", sizeof(buff));
-	readpng(g_menubg_src_ptr, buff, READPNG_BG, g_menuscreen_w, g_menuscreen_h);
-
 	i = plat_target.cpu_clock_set != NULL
 		&& plat_target.cpu_clock_get != NULL && cpu_clock_st > 0;
 	me_enable(e_menu_gfx_options, MA_OPT_CPU_CLOCKS, i);
@@ -2545,6 +2543,7 @@ void menu_init(void)
 	me_enable(e_menu_keyconfig, MA_CTRL_NUBS_BTNS, MENU_SHOW_NUBS_BTNS);
 	me_enable(e_menu_keyconfig, MA_CTRL_VIBRATION, MENU_SHOW_VIBRATION);
 	me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, MENU_SHOW_DEADZONE);
+	me_enable(e_menu_options, MA_OPT_DISP_OPTS, MENU_SHOW_DISPLAY);
 }
 
 void menu_notify_mode_change(int w, int h, int bpp)

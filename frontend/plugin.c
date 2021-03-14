@@ -70,13 +70,13 @@ static long PADreadPort1(PadDataS *pad) {
 		pad->absoluteX = in_analog_left[pad_index][0];
 		pad->absoluteY = in_analog_left[pad_index][1];
 	}
-
+#ifdef HAVE_LIBRETRO
 	if (in_type[pad_index] == PSE_PAD_TYPE_MOUSE)
 	{
 		pad->moveX = in_mouse[pad_index][0];
 		pad->moveY = in_mouse[pad_index][1];
 	}
-
+#endif
 	return 0;
 }
 
@@ -102,11 +102,13 @@ static long PADreadPort2(PadDataS *pad) {
 		pad->absoluteY = in_analog_left[pad_index][1];
 	}
 
+#ifdef HAVE_LIBRETRO
 	if (in_type[pad_index] == PSE_PAD_TYPE_MOUSE)
 	{
 		pad->moveX = in_mouse[pad_index][0];
 		pad->moveY = in_mouse[pad_index][1];
 	}
+#endif
 
 	return 0;
 }
