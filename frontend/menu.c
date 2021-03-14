@@ -1382,6 +1382,7 @@ static menu_entry e_menu_plugin_gpu_unai[] =
 	mee_onoff     ("Fast lighting",              0, pl_rearmed_cbs.gpu_unai.fast_lighting, 1),
 	mee_onoff     ("Blending",                   0, pl_rearmed_cbs.gpu_unai.blending, 1),
 	mee_onoff     ("Pixel skip",                 0, pl_rearmed_cbs.gpu_unai.pixel_skip, 1),
+	mee_onoff     ("Downscale Hi-Res",           0, pl_rearmed_cbs.gpu_unai.scale_hires, 1),
 	mee_end,
 };
 
