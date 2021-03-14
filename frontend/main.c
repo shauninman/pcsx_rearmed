@@ -54,12 +54,15 @@ enum sched_action emu_action, emu_action_old;
 char hud_msg[64];
 int hud_new_msg;
 
-static void make_path(char *buf, size_t size, const char *dir, const char *fname)
+void make_path(char *buf, size_t size, const char *dir, const char *fname)
 {
+	char root_dir[MAXPATHLEN];
+	plat_get_root_dir(root_dir, MAXPATHLEN);
+
 	if (fname)
-		snprintf(buf, size, ".%s%s", dir, fname);
+		snprintf(buf, size, "%s%s%s", root_dir, dir, fname);
 	else
-		snprintf(buf, size, ".%s", dir);
+		snprintf(buf, size, "%s%s", root_dir, dir);
 }
 #define MAKE_PATH(buf, dir, fname) \
 	make_path(buf, sizeof(buf), dir, fname)
@@ -103,7 +106,7 @@ void set_cd_image(const char *fname)
 static void set_default_paths(void)
 {
 #ifndef NO_FRONTEND
-	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "." PATCHES_DIR);
+	MAKE_PATH(Config.PatchesDir, PATCHES_DIR, NULL);
 	MAKE_PATH(Config.Mcd1, MEMCARD_DIR, "card1.mcd");
 	MAKE_PATH(Config.Mcd2, MEMCARD_DIR, "card2.mcd");
 	strcpy(Config.BiosDir, "bios");
@@ -477,17 +480,13 @@ static void create_profile_dir(const char *directory) {
 }
 
 static void check_profile(void) {
-	// make sure that ~/.pcsx exists
-	create_profile_dir(PCSX_DOT_DIR);
-
-	create_profile_dir(BIOS_DIR);
 	create_profile_dir(MEMCARD_DIR);
 	create_profile_dir(STATES_DIR);
 	create_profile_dir(PLUGINS_DIR);
 	create_profile_dir(PLUGINS_CFG_DIR);
 	create_profile_dir(CHEATS_DIR);
 	create_profile_dir(PATCHES_DIR);
-	create_profile_dir(PCSX_DOT_DIR "cfg");
+	create_profile_dir("/cfg/");
 	create_profile_dir("/screenshots/");
 }
 
@@ -601,7 +600,7 @@ int main(int argc, char *argv[])
 		// FIXME: this recovery doesn't work, just delete bad config and bail out
 		// SysMessage("could not load plugins, retrying with defaults\n");
 		set_default_paths();
-		snprintf(path, sizeof(path), "." PCSX_DOT_DIR "%s", cfgfile_basename);
+		MAKE_PATH(path, cfgfile_basename, NULL);
 		remove(path);
 		SysMessage("Failed loading plugins!");
 		return 1;
@@ -757,8 +756,10 @@ void SysUpdate() {
 }
 
 int get_state_filename(char *buf, int size, int i) {
-	return get_gameid_filename(buf, size,
-		"." STATES_DIR "%.32s-%.9s.%3.3d", i);
+	char fname[MAXPATHLEN];
+	MAKE_PATH(fname, STATES_DIR, "%.32s-%.9s.%3.3d");
+
+	return get_gameid_filename(buf, size, fname, i);
 }
 
 int emu_check_state(int slot)

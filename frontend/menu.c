@@ -478,10 +478,14 @@ static char *get_cd_label(void)
 
 static void make_cfg_fname(char *buf, size_t size, int is_game)
 {
-	if (is_game)
-		snprintf(buf, size, "." PCSX_DOT_DIR "cfg/%.32s-%.9s.cfg", get_cd_label(), CdromId);
+	char fname[MAXPATHLEN];
+
+	if (is_game) {
+		snprintf(fname, MAXPATHLEN, "%.32s-%.9s.cfg", get_cd_label(), CdromId);
+		make_path(buf, size, "/cfg/", fname);
+	}
 	else
-		snprintf(buf, size, "." PCSX_DOT_DIR "%s", cfgfile_basename);
+		make_path(buf, size, cfgfile_basename, NULL);
 }
 
 static void keys_write_all(FILE *f);
@@ -538,7 +542,7 @@ static int menu_do_last_cd_img(int is_get)
 	FILE *f;
 	int i, ret = -1;
 
-	snprintf(path, sizeof(path), "." PCSX_DOT_DIR "lastcdimg.txt");
+	MAKE_PATH(path, "lastcdimg.txt", NULL);
 	f = fopen(path, is_get ? "r" : "w");
 	if (f == NULL) {
 		ret = -1;
@@ -695,15 +699,13 @@ fail:
 		if (memcard1_sel == 0)
 			strcpy(Config.Mcd1, "none");
 		else if (memcards[memcard1_sel] != NULL)
-			snprintf(Config.Mcd1, sizeof(Config.Mcd1), ".%s%s",
-				MEMCARD_DIR, memcards[memcard1_sel]);
+			MAKE_PATH(Config.Mcd1, MEMCARD_DIR, memcards[memcard1_sel]);
 	}
 	if ((unsigned int)memcard2_sel < ARRAY_SIZE(memcards)) {
 		if (memcard2_sel == 0)
 			strcpy(Config.Mcd2, "none");
 		else if (memcards[memcard2_sel] != NULL)
-			snprintf(Config.Mcd2, sizeof(Config.Mcd2), ".%s%s",
-				MEMCARD_DIR, memcards[memcard2_sel]);
+			MAKE_PATH(Config.Mcd2, MEMCARD_DIR, memcards[memcard2_sel]);
 	}
 	if (strcmp(mcd1_old, Config.Mcd1) || strcmp(mcd2_old, Config.Mcd2))
 		LoadMcds(Config.Mcd1, Config.Mcd2);
@@ -1769,10 +1771,10 @@ static void handle_memcard_sel(void)
 {
 	strcpy(Config.Mcd1, "none");
 	if (memcard1_sel != 0)
-		snprintf(Config.Mcd1, sizeof(Config.Mcd1), ".%s%s", MEMCARD_DIR, memcards[memcard1_sel]);
+		MAKE_PATH(Config.Mcd1, MEMCARD_DIR, memcards[memcard1_sel]);
 	strcpy(Config.Mcd2, "none");
 	if (memcard2_sel != 0)
-		snprintf(Config.Mcd2, sizeof(Config.Mcd2), ".%s%s", MEMCARD_DIR, memcards[memcard2_sel]);
+		MAKE_PATH(Config.Mcd2, MEMCARD_DIR, memcards[memcard2_sel]);
 	LoadMcds(Config.Mcd1, Config.Mcd2);
 	draw_mc_bg();
 }
@@ -2452,7 +2454,8 @@ do_plugins:
 	closedir(dir);
 
 do_memcards:
-	dir = opendir("." MEMCARD_DIR);
+	MAKE_PATH(fname, MEMCARD_DIR, NULL);
+	dir = opendir(fname);
 	if (dir == NULL) {
 		perror("scan_bios_plugins memcards opendir");
 		return;
@@ -2472,7 +2475,7 @@ do_memcards:
 		if (ent->d_type != DT_REG && ent->d_type != DT_LNK)
 			continue;
 
-		snprintf(fname, sizeof(fname), "." MEMCARD_DIR "%s", ent->d_name);
+		MAKE_PATH(fname, MEMCARD_DIR, ent->d_name);
 		if (stat(fname, &st) != 0) {
 			printf("bad memcard file: %s\n", ent->d_name);
 			continue;

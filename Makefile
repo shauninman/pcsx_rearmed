@@ -2,7 +2,7 @@
 
 # default stuff goes here, so that config can override
 TARGET ?= pcsx
-CFLAGS += -Wall -Iinclude -ffast-math
+CFLAGS += -Wall -Iinclude -ffast-math -DPICO_HOME_DIR='"/.pcsx/"'
 
 ifeq ($(DEBUG), 1)
 CFLAGS += -O0 -ggdb
@@ -16,7 +16,6 @@ endif
 CXXFLAGS += $(CFLAGS)
 #DRC_DBG = 1
 #PCNT = 1
-PICO_HOME_DIR=".pcsx"
 
 all: config.mak target_ plugins_
 

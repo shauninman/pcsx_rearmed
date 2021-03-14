@@ -21,16 +21,12 @@
 
 #include "config.h"
 
-#define DEFAULT_MEM_CARD_1 "/.pcsx/memcards/card1.mcd"
-#define DEFAULT_MEM_CARD_2 "/.pcsx/memcards/card2.mcd"
-#define MEMCARD_DIR "/.pcsx/memcards/"
-#define PLUGINS_DIR "/.pcsx/plugins/"
-#define PLUGINS_CFG_DIR "/.pcsx/plugins/cfg/"
-#define PCSX_DOT_DIR "/.pcsx/"
-#define STATES_DIR "/.pcsx/sstates/"
-#define CHEATS_DIR "/.pcsx/cheats/"
-#define PATCHES_DIR "/.pcsx/patches/"
-#define BIOS_DIR "/bios/"
+#define MEMCARD_DIR "memcards/"
+#define PLUGINS_DIR "plugins/"
+#define PLUGINS_CFG_DIR "plugins/cfg/"
+#define STATES_DIR "sstates/"
+#define CHEATS_DIR "cheats/"
+#define PATCHES_DIR "patches/"
 
 extern char cfgfile_basename[MAXPATHLEN];
 
@@ -52,6 +48,10 @@ int emu_save_state(int slot);
 int emu_load_state(int slot);
 
 void set_cd_image(const char *fname);
+void make_path(char *buf, size_t size, const char *dir, const char *fname);
+
+#define MAKE_PATH(buf, dir, fname) \
+	make_path(buf, sizeof(buf), dir, fname)
 
 extern unsigned long gpuDisp;
 extern int ready_to_go, g_emu_want_quit, g_emu_resetting;
