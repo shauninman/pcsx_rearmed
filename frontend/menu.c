@@ -93,7 +93,7 @@ typedef enum
 } menu_id;
 
 static int last_vout_w, last_vout_h, last_vout_bpp;
-static int cpu_clock, cpu_clock_st, volume_boost, frameskip;
+static int cpu_clock, cpu_clock_st, volume_boost, frameskip, frameskip_type;
 static char last_selected_fname[MAXPATHLEN];
 static int config_save_counter, region, in_type_sel1, in_type_sel2;
 static int psx_clock;
@@ -325,6 +325,7 @@ static void menu_sync_config(void)
 
 	spu_config.iVolume = 768 + 128 * volume_boost;
 	pl_rearmed_cbs.frameskip = frameskip - 1;
+	pl_rearmed_cbs.frameskip_type = frameskip_type;
 	pl_timing_prepare(Config.PsxType);
 }
 
@@ -337,6 +338,7 @@ static void menu_set_defconfig(void)
 	g_gamma = 100;
 	volume_boost = 0;
 	frameskip = 0;
+	frameskip_type = 0;
 	analog_deadzone = 50;
 	soft_scaling = 1;
 	soft_filter = 0;
@@ -424,6 +426,7 @@ static const struct {
 	CE_INTVAL_N("adev0_is_nublike", in_adev_is_nublike[0]),
 	CE_INTVAL_N("adev1_is_nublike", in_adev_is_nublike[1]),
 	CE_INTVAL_V(frameskip, 3),
+	CE_INTVAL(frameskip_type),
 	CE_INTVAL_P(thread_rendering),
 	CE_INTVAL_P(gpu_peops.iUseDither),
 	CE_INTVAL_P(gpu_peops.dwActFixes),
@@ -1611,6 +1614,7 @@ static int mh_restore_defaults(int id, int keys)
 
 static const char *men_region[]       = { "Auto", "NTSC", "PAL", NULL };
 static const char *men_frameskip[]    = { "Auto", "Off", "1", "2", "3", NULL };
+static const char *men_fs_type[]      = { "Time", "Audio", NULL };
 /*
 static const char *men_confirm_save[] = { "OFF", "writes", "loads", "both", NULL };
 static const char h_confirm_save[]    = "Ask for confirmation when overwriting save,\n"
@@ -1625,6 +1629,7 @@ static menu_entry e_menu_options[] =
 //	mee_range     ("Save slot",                0, state_slot, 0, 9),
 //	mee_enum_h    ("Confirm savestate",        0, dummy, men_confirm_save, h_confirm_save),
 	mee_enum_h    ("Frameskip",                0, frameskip, men_frameskip, h_frameskip),
+	mee_enum      ("Frameskip type",           0, frameskip_type, men_fs_type),
 	mee_onoff     ("Show FPS",                 0, g_opts, OPT_SHOWFPS),
 	mee_enum      ("Region",                   0, region, men_region),
 	mee_range     ("CPU clock",                MA_OPT_CPU_CLOCKS, cpu_clock, 20, 5000),

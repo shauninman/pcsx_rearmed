@@ -69,6 +69,7 @@ struct rearmed_cbs {
 	void *gles_display, *gles_surface;
 	// gpu options
 	int   frameskip;
+	int   frameskip_type;
 	int   fskip_advice;
 	unsigned int *gpu_frame_count;
 	unsigned int *gpu_hcnt;

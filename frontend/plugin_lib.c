@@ -33,6 +33,8 @@
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../libpcsxcore/psxmem_map.h"
 #include "../plugins/dfinput/externals.h"
+#include "../plugins/dfsound/out.h"
+
 
 #define HUD_HEIGHT 10
 
@@ -702,17 +704,34 @@ void pl_frame_limit(void)
 		tv_expect.tv_usec = usadj << 10;
 	}
 
-	if (!(g_opts & OPT_NO_FRAMELIM) && diff > frame_interval) {
-		// yay for working usleep on pandora!
-		//printf("usleep %d\n", diff - frame_interval / 2);
-		usleep(diff - frame_interval);
+	if (!(g_opts & OPT_NO_FRAMELIM)) {
+		if (pl_rearmed_cbs.frameskip && pl_rearmed_cbs.frameskip_type == 1) {
+			while (out_current && out_current->capacity() < 0.1) {
+				usleep(500);
+			}
+		} else {
+			if (diff > frame_interval) {
+				// yay for working usleep on pandora!
+				//printf("usleep %d\n", diff - frame_interval / 2);
+				usleep(diff - frame_interval);
+			}
+		}
 	}
+	
 
 	if (pl_rearmed_cbs.frameskip) {
-		if (diff < -frame_interval)
-			pl_rearmed_cbs.fskip_advice = 1;
-		else if (diff >= 0)
-			pl_rearmed_cbs.fskip_advice = 0;
+		if (pl_rearmed_cbs.frameskip_type == 1) {
+			if (out_current->capacity() > 0.5) {
+				pl_rearmed_cbs.fskip_advice = 1;
+			} else {
+				pl_rearmed_cbs.fskip_advice = 0;
+			}
+		} else {
+			if (diff < -frame_interval)
+				pl_rearmed_cbs.fskip_advice = 1;
+			else if (diff >= 0)
+				pl_rearmed_cbs.fskip_advice = 0;
+		}
 
 		// recompilation is not that fast and may cause frame skip on
 		// loading screens and such, resulting in flicker or glitches

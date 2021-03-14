@@ -151,6 +151,7 @@ static int vout_open(void) { return 0; }
 static void vout_close(void) {}
 static int snd_init(void) { return 0; }
 static void snd_finish(void) {}
+static float snd_capacity(void) { return 0.3; }
 static int snd_busy(void) { return 0; }
 
 #define GPU_PEOPS_ODD_EVEN_BIT         (1 << 0)
@@ -510,11 +511,12 @@ static void snd_feed(void *buf, int bytes)
 
 void out_register_libretro(struct out_driver *drv)
 {
-   drv->name   = "libretro";
-   drv->init   = snd_init;
-   drv->finish = snd_finish;
-   drv->busy   = snd_busy;
-   drv->feed   = snd_feed;
+   drv->name     = "libretro";
+   drv->init     = snd_init;
+   drv->finish   = snd_finish;
+   drv->busy     = snd_busy;
+   drv->feed     = snd_feed;
+   drv->capacity = snd_capacity;
 }
 
 #define RETRO_DEVICE_PSE_STANDARD   RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_JOYPAD,   0)

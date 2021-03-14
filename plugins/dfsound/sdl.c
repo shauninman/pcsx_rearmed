@@ -103,17 +103,20 @@ static void sdl_finish(void) {
 	pSndBuffer = NULL;
 }
 
-static int sdl_busy(void) {
+static float sdl_capacity(void) {
 	int size;
 
-	if (pSndBuffer == NULL) return 1;
+	if (pSndBuffer == NULL) return 0;
+	if (iBufSize == 0) return 0;
 
 	size = iReadPos - iWritePos;
 	if (size <= 0) size += iBufSize;
 
-	if (size < iBufSize / 2) return 1;
+	return (float)size / iBufSize;
+}
 
-	return 0;
+static int sdl_busy(void) {
+	return sdl_capacity() < 0.5;
 }
 
 static void sdl_feed(void *pSound, int lBytes) {
@@ -140,4 +143,5 @@ void out_register_sdl(struct out_driver *drv)
 	drv->finish = sdl_finish;
 	drv->busy = sdl_busy;
 	drv->feed = sdl_feed;
+	drv->capacity = sdl_capacity;
 }
