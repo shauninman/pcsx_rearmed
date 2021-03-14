@@ -87,6 +87,9 @@ typedef enum
 	MA_OPT_VOUT_MODE,
 	MA_OPT_SCANLINES,
 	MA_OPT_SCANLINE_LEVEL,
+	MA_PLUG_PEOPS,
+	MA_PLUG_UNAI,
+	MA_PLUG_PEOPSGL,
 } menu_id;
 
 static int last_vout_w, last_vout_h, last_vout_bpp;
@@ -1502,16 +1505,16 @@ static const char h_spu[]        = "Configure built-in P.E.Op.S. Sound Driver V1
 
 static menu_entry e_menu_plugin_options[] =
 {
-	mee_enum_h    ("BIOS",                          0, bios_sel, bioses, h_bios),
-	mee_enum_h    ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_gpu),
-	mee_enum_h    ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_spu),
+	mee_enum_h       ("BIOS",                          0, bios_sel, bioses, h_bios),
+	mee_enum_h       ("GPU plugin",                    0, gpu_plugsel, gpu_plugins, h_plugin_gpu),
+	mee_enum_h       ("SPU plugin",                    0, spu_plugsel, spu_plugins, h_plugin_spu),
 #ifdef __ARM_NEON__
-	mee_handler_h ("Configure built-in GPU plugin", menu_loop_plugin_gpu_neon, h_gpu_neon),
+	mee_handler_h    ("Configure built-in GPU plugin", menu_loop_plugin_gpu_neon, h_gpu_neon),
 #endif
-	mee_handler_h ("Configure gpu_peops plugin",    menu_loop_plugin_gpu_peops, h_gpu_peops),
-	mee_handler_h ("Configure gpu_unai GPU plugin", menu_loop_plugin_gpu_unai, h_gpu_unai),
-	mee_handler_h ("Configure gpu_gles GPU plugin", menu_loop_plugin_gpu_peopsgl, h_gpu_peopsgl),
-	mee_handler_h ("Configure built-in SPU plugin", menu_loop_plugin_spu, h_spu),
+	mee_handler_id_h ("Configure gpu_peops plugin",    MA_PLUG_PEOPS, menu_loop_plugin_gpu_peops, h_gpu_peops),
+	mee_handler_id_h ("Configure gpu_unai GPU plugin", MA_PLUG_UNAI, menu_loop_plugin_gpu_unai, h_gpu_unai),
+	mee_handler_id_h ("Configure gpu_gles GPU plugin", MA_PLUG_PEOPSGL, menu_loop_plugin_gpu_peopsgl, h_gpu_peopsgl),
+	mee_handler_h    ("Configure built-in SPU plugin", menu_loop_plugin_spu, h_spu),
 	mee_end,
 };
 
@@ -2547,6 +2550,11 @@ void menu_init(void)
 	me_enable(e_menu_keyconfig, MA_CTRL_VIBRATION, MENU_SHOW_VIBRATION);
 	me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, MENU_SHOW_DEADZONE);
 	me_enable(e_menu_options, MA_OPT_DISP_OPTS, MENU_SHOW_DISPLAY);
+
+#ifdef TRIMUI
+	me_enable(e_menu_plugin_options, MA_PLUG_PEOPS, FALSE);
+	me_enable(e_menu_plugin_options, MA_PLUG_PEOPSGL, FALSE);
+#endif
 }
 
 void menu_notify_mode_change(int w, int h, int bpp)
