@@ -12,7 +12,7 @@ tools
 .pcsx/
 obj/
 .vscode
-
+pcsx
 # Switch
 *.d
 .vscode/ipch/*
