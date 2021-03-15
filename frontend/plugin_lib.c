@@ -89,6 +89,8 @@ static __attribute__((noinline)) int get_cpu_ticks(void)
 
 static void hud_print(void *fb, int w, int x, int y, const char *text)
 {
+	return;
+	
 	if (pl_plat_hud_print)
 		pl_plat_hud_print(x, y, text, pl_vout_bpp);
 	else if (pl_vout_bpp == 16)
