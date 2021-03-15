@@ -1,0 +1,3 @@
+[submodule "frontend/libpicofe"]
+	path = frontend/libpicofe
+	url = git@github.com:shauninman/libpicofe.git
