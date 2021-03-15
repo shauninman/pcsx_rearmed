@@ -42,6 +42,14 @@ static void check_memcards(void);
 #define BOOT_MSG "Booting up..."
 #endif
 
+#ifdef TRIMUI
+#include <dlfcn.h>
+#include <mmenu.h>
+// static void* mmenu = NULL;
+char rom_path[MAXPATHLEN];
+char save_path[MAXPATHLEN];
+#endif
+
 // don't include debug.h - it breaks ARM build (R1 redefined)
 void StartDebugger();
 void StopDebugger();
@@ -87,6 +95,10 @@ static int get_gameid_filename(char *buf, int size, const char *fmt, int i) {
 void set_cd_image(const char *fname)
 {
 	const char *ext = NULL;
+	
+#ifdef TRIMUI
+	strcpy(rom_path, fname);
+#endif
 	
 	if (fname != NULL)
 		ext = strrchr(fname, '.');
@@ -195,7 +207,41 @@ void do_emu_action(void)
 #ifndef NO_FRONTEND
 	case SACTION_ENTER_MENU:
 		toggle_fast_forward(1);
+#ifdef TRIMUI
+		// if (mmenu)
+		{
+			// ShowMenu_t ShowMenu = (ShowMenu_t)dlsym(mmenu, "ShowMenu");
+			SDL_Surface *screen = SDL_GetVideoSurface();
+			MenuReturnStatus status = ShowMenu(rom_path, save_path, screen, kMenuEventKeyDown);
+
+			if (status==kStatusExitGame) {
+				g_emu_want_quit = 1;
+			}
+			else if (status==kStatusOpenMenu) {
+				menu_loop();
+			}
+			else if (status>=kStatusLoadSlot) {
+				state_slot = status - kStatusLoadSlot;
+				emu_load_state(state_slot);
+			}
+			else if (status>=kStatusSaveSlot) {
+				state_slot = status - kStatusSaveSlot;
+				emu_save_state(state_slot);
+			}
+			plat_video_menu_leave();
+			
+			// release that menu key
+			SDL_Event sdlevent;
+			sdlevent.type = SDL_KEYUP;
+			sdlevent.key.keysym.sym = SDLK_ESCAPE;
+			SDL_PushEvent(&sdlevent);
+		}
+		// else {
+		// 	menu_loop();
+		// }
+#else
 		menu_loop();
+#endif
 		return;
 	case SACTION_NEXT_SSLOT:
 		state_slot++;
@@ -660,6 +706,16 @@ int main(int argc, char *argv[])
 
 	pl_start_watchdog();
 
+#ifdef TRIMUI
+	// mmenu = dlopen("libmmenu.so", RTLD_LAZY);
+	
+	// build save_path_template
+	char fmt[MAXPATHLEN];
+	MAKE_PATH(fmt, STATES_DIR, "%.32s-%.9s.%3.3d");
+	get_gameid_filename(save_path, MAXPATHLEN, fmt, 0);
+	char* tmp = strrchr(save_path, '.')+1;
+	strcpy(tmp, "%3.3d");
+#endif	
 	while (!g_emu_want_quit)
 	{
 		stop = 0;

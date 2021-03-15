@@ -335,7 +335,8 @@ USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
 CFLAGS += -DGPULIB_USE_MMAP -DGPU_UNAI_USE_INT_DIV_MULTINV -fomit-frame-pointer -ffast-math -ffunction-sections -fsingle-precision-constant
 CFLAGS += $(SDL_CFLAGS) -DTRIMUI
-LDFLAGS += $(SDL_LDFLAGS) -flto -fwhole-program
+LDFLAGS += $(CFLAGS) $(SDL_LDFLAGS) -flto -fwhole-program
+LDLIBS += -lSDL_image -lSDL_ttf -lmmenu
 endif
 ifeq "$(PLATFORM)" "maemo"
 OBJS += maemo/hildon.o maemo/main.o maemo/maemo_xkb.o frontend/pl_gun_ts.o
