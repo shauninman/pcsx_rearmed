@@ -98,12 +98,29 @@ const struct menu_keymap in_sdl_joy_map[] =
 	{ SDLK_WORLD_3, PBTN_MA3 },
 };
 
+static const char * const in_sdl_key_names[SDLK_LAST] = {
+	[SDLK_UP]         = "up",
+	[SDLK_DOWN]       = "down",
+	[SDLK_LEFT]       = "left",
+	[SDLK_RIGHT]      = "right",
+	[SDLK_LSHIFT]     = "x",
+	[SDLK_LCTRL]      = "b",
+	[SDLK_SPACE]      = "a",
+	[SDLK_LALT]       = "y",
+	[SDLK_RETURN]     = "start",
+	[SDLK_RCTRL]      = "select",
+	[SDLK_TAB]        = "l",
+	[SDLK_BACKSPACE]  = "r",
+	[SDLK_ESCAPE]     = "menu",
+};
+
 static const struct in_pdata in_sdl_platform_data = {
 	.defbinds  = in_sdl_defbinds,
 	.key_map   = in_sdl_key_map,
 	.kmap_size = sizeof(in_sdl_key_map) / sizeof(in_sdl_key_map[0]),
 	.joy_map   = in_sdl_joy_map,
 	.jmap_size = sizeof(in_sdl_joy_map) / sizeof(in_sdl_joy_map[0]),
+	.key_names = in_sdl_key_names,
 };
 
 static void *fb_flip(void)
