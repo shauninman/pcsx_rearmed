@@ -328,6 +328,7 @@ void plat_init(void)
 
 	g_menuscreen_w = 320;
 	g_menuscreen_h = 240;
+	g_menuscreen_pp = 320;
 	g_menuscreen_ptr = fb_flip();
 
 	in_sdl_init(&in_sdl_platform_data, plat_sdl_event_handler);
