@@ -2,6 +2,7 @@
 #define __MENU_H__
 
 void menu_init(void);
+int menu_load_config(int is_game);
 void menu_prepare_emu(void);
 void menu_loop(void);
 void menu_finish(void);

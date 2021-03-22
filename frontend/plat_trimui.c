@@ -176,34 +176,34 @@ void plat_minimize(void)
 {
 }
 
-#define make_flip_func(name, scale, blitfunc)																					\
-static void name(int doffs, const void *vram_, int w, int h, int sstride, int bgr24)	\
-{																																											\
-	const unsigned short *vram = vram_;																									\
-	unsigned char *conv = (unsigned char *)cspace_buf;																	\
-	unsigned char *dst = (unsigned char *)screen->pixels +															\
-									(fb_offset_y * 320 + fb_offset_x) * sizeof(uint16_t);								\
-	int dst_stride = 640;																																\
-	int len = psx_src_width * psx_bpp / 8;																							\
-	int i;																																							\
-	void (*convertfunc)(void *dst, const void *src, int bytes);													\
-	convertfunc = psx_bpp == 24 ? bgr888_to_rgb565 : bgr555_to_rgb565;									\
-																																											\
-	SDL_LockSurface(screen);																														\
-	vram += psx_offset_y * 1024 + psx_offset_x;																					\
-	for (i = psx_src_height; i > 0; i--,																								\
-				 vram += psx_step * 1024,																											\
-				 dst += dst_stride,																														\
-				 conv += dst_stride)  {																												\
-		if (scale) {																																			\
-			convertfunc(conv, vram, len);																										\
-			blitfunc(dst, conv, dst_stride);																								\
-	  } else {																																					\
-			convertfunc(dst, vram, len);																										\
-		}																																									\
-	}																																										\
-	SDL_UnlockSurface(screen);																													\
-}
+#define make_flip_func(name, scale, blitfunc)                                           \
+  static void name(int doffs, const void *vram_, int w, int h, int sstride, int bgr24)  \
+  {                                                                                     \
+    const unsigned short *vram = vram_;                                                 \
+    unsigned char *conv = (unsigned char *)cspace_buf;                                  \
+    unsigned char *dst = (unsigned char *)screen->pixels +                              \
+      (fb_offset_y * 320 + fb_offset_x) * sizeof(uint16_t);                             \
+    int dst_stride = 640;                                                               \
+    int len = psx_src_width * psx_bpp / 8;                                              \
+    int i;                                                                              \
+    void (*convertfunc)(void *dst, const void *src, int bytes);                         \
+    convertfunc = psx_bpp == 24 ? bgr888_to_rgb565 : bgr555_to_rgb565;                  \
+                                                                                        \
+    SDL_LockSurface(screen);                                                            \
+    vram += psx_offset_y * 1024 + psx_offset_x;                                         \
+    for (i = psx_src_height; i > 0; i--,                                                \
+           vram += psx_step * 1024,                                                     \
+           dst += dst_stride,                                                           \
+           conv += dst_stride)  {                                                       \
+      if (scale) {                                                                      \
+        convertfunc(conv, vram, len);                                                   \
+        blitfunc(dst, conv, dst_stride);                                                \
+      } else {                                                                          \
+        convertfunc(dst, vram, len);                                                    \
+      }                                                                                 \
+    }                                                                                   \
+    SDL_UnlockSurface(screen);                                                          \
+  }
 
 make_flip_func(raw_blit_soft,     false, memcpy)
 make_flip_func(raw_blit_soft_368, true,  blit320_368)
