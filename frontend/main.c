@@ -679,6 +679,7 @@ int main(int argc, char *argv[])
 				SysPrintf(_("Could not load CD-ROM!\n"));
 				return -1;
 			}
+			menu_load_config(1);
 			emu_on_new_cd(!loadst);
 			ready_to_go = 1;
 		}
