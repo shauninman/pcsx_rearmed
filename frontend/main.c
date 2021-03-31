@@ -189,6 +189,19 @@ void emu_set_default_config(void)
 	in_type[1] = PSE_PAD_TYPE_STANDARD;
 }
 
+static void change_disc(char* path)
+{
+	CdromId[0] = '\0';
+	CdromLabel[0] = '\0';
+
+	set_cd_image(path);
+	if (ReloadCdromPlugin() < 0) return;
+	if (CDR_open() < 0) return;
+
+	SetCdOpenCaseTime(time(NULL) + 2);
+	LidInterrupt();
+}
+
 void do_emu_action(void)
 {
 	int ret;
@@ -216,6 +229,23 @@ void do_emu_action(void)
 
 			if (status==kStatusExitGame) {
 				g_emu_want_quit = 1;
+			}
+			else if (status==kStatusChangeDisc && access("/tmp/change_disc", F_OK)==0) {
+				FILE* file = fopen("/tmp/change_disc", "r");
+				if (file) {
+					char line[256];
+					line[0] = 0;
+					while (fgets(line,256,file)!=NULL) {
+						int len = strlen(line);
+						if (len>0 && line[len-1]=='\n') line[len-1] = 0; // trim newline
+						if (strlen(line)==0) continue; // skip empty lines
+						if (access(line, F_OK)==0) break; // line is now the path to the requested disc
+					}
+					fclose(file);
+					if (strlen(line)>0) {
+						change_disc(line);
+					}
+				}
 			}
 			else if (status==kStatusOpenMenu) {
 				menu_loop();
