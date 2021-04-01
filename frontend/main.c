@@ -202,6 +202,16 @@ static void change_disc(char* path)
 	LidInterrupt();
 }
 
+static void get_file(char* path, char* buffer) {
+	FILE *file = fopen(path, "r");
+	fseek(file, 0L, SEEK_END);
+	size_t size = ftell(file);
+	rewind(file);
+	fread(buffer, size, sizeof(char), file);
+	fclose(file);
+	buffer[size] = '\0';
+}
+
 void do_emu_action(void)
 {
 	int ret;
@@ -230,22 +240,11 @@ void do_emu_action(void)
 			if (status==kStatusExitGame) {
 				g_emu_want_quit = 1;
 			}
-			else if (status==kStatusChangeDisc && access("/tmp/change_disc", F_OK)==0) {
-				FILE* file = fopen("/tmp/change_disc", "r");
-				if (file) {
-					char line[256];
-					line[0] = 0;
-					while (fgets(line,256,file)!=NULL) {
-						int len = strlen(line);
-						if (len>0 && line[len-1]=='\n') line[len-1] = 0; // trim newline
-						if (strlen(line)==0) continue; // skip empty lines
-						if (access(line, F_OK)==0) break; // line is now the path to the requested disc
-					}
-					fclose(file);
-					if (strlen(line)>0) {
-						change_disc(line);
-					}
-				}
+			else if (status==kStatusChangeDisc && access("/tmp/change_disc.txt", F_OK)==0) {
+				char disc_path[256];
+				get_file("/tmp/change_disc.txt", disc_path);
+				puts(disc_path);
+				change_disc(disc_path);
 			}
 			else if (status==kStatusOpenMenu) {
 				menu_loop();
