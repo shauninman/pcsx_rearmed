@@ -207,7 +207,7 @@ static void get_file(char* path, char* buffer) {
 	fseek(file, 0L, SEEK_END);
 	size_t size = ftell(file);
 	rewind(file);
-	fread(buffer, size, sizeof(char), file);
+	fread(buffer, sizeof(char), size, file);
 	fclose(file);
 	buffer[size] = '\0';
 }
