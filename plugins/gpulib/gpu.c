@@ -97,7 +97,7 @@ static noinline void decide_frameskip(void)
     gpu.frameskip.frame_ready = 1;
   }
 
-  if (gpu.frameskip.set < 0 && gpu.frameskip.cnt < 2 && *gpu.frameskip.advice)
+  if (gpu.frameskip.set < 0 && gpu.frameskip.cnt < 3 && *gpu.frameskip.advice)
     gpu.frameskip.active = 1;
   else if (!gpu.frameskip.active && *gpu.frameskip.advice)
     gpu.frameskip.active = 1;
