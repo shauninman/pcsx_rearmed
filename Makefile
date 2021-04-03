@@ -306,7 +306,7 @@ OBJS += frontend/plat_trimui.o frontend/blit320.o
 frontend/main.o frontend/menu.o: CFLAGS += -include frontend/menu_trimui.h
 USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
-CFLAGS += -DGPULIB_USE_MMAP -DGPU_UNAI_USE_INT_DIV_MULTINV -fomit-frame-pointer -ffast-math -ffunction-sections -fsingle-precision-constant
+CFLAGS += -DGPULIB_USE_MMAP -DGPU_UNAI_USE_INT_DIV_MULTINV -DMENU_SHOULDER_COMBO -fomit-frame-pointer -ffast-math -ffunction-sections -fsingle-precision-constant
 CFLAGS += $(SDL_CFLAGS) -DTRIMUI
 LDFLAGS += $(SDL_LDFLAGS) -flto -fwhole-program
 endif
