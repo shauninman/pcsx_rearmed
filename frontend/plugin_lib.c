@@ -603,6 +603,7 @@ static void update_input(void)
 {
 	int actions[IN_BINDTYPE_COUNT] = { 0, };
 	unsigned int emu_act;
+	int keystate;
 
 	in_update(actions);
 	if (in_type[0] == PSE_PAD_TYPE_ANALOGJOY || in_type[0] == PSE_PAD_TYPE_ANALOGPAD)
@@ -617,9 +618,31 @@ static void update_input(void)
 			;
 		emu_act = which;
 	}
+
+	keystate = actions[IN_BINDTYPE_PLAYER12];
+#ifdef MENU_SHOULDER_COMBO
+	if (emu_act == SACTION_ENTER_MENU) {
+		if (keystate)
+			emu_menu_cancel = 1;
+
+		if (keystate & (1 << DKEY_L1)) {
+			keystate ^= (1 << DKEY_L1);
+			keystate |= (1 << DKEY_L2);
+		} else if (keystate & (1 << DKEY_L2)) {
+			keystate ^= (1 << DKEY_L2);
+			keystate |= (1 << DKEY_L1);
+		} else if (keystate & (1 << DKEY_R1)) {
+			keystate ^= (1 << DKEY_R1);
+			keystate |= (1 << DKEY_R2);
+		} else if (keystate & (1 << DKEY_R2)) {
+			keystate ^= (1 << DKEY_R2);
+			keystate |= (1 << DKEY_R1);
+		}
+	}
+#endif
 	emu_set_action(emu_act);
 
-	in_keystate[0] = actions[IN_BINDTYPE_PLAYER12];
+	in_keystate[0] = keystate;
 }
 #else /* MAEMO */
 extern void update_input(void);

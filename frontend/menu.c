@@ -132,6 +132,7 @@ static int bios_sel, gpu_plugsel, spu_plugsel;
 #define MENU_SHOW_FULLSCREEN 1
 #define MENU_SHOW_VOLUME 0
 #define MENU_SHOW_DISPLAY 1
+#define MENU_SHOW_PEOPS 1
 #endif
 
 static int min(int x, int y) { return x < y ? x : y; }
@@ -406,6 +407,7 @@ static const struct {
 	CE_CONFIG_VAL(Cpu),
 	CE_INTVAL(region),
 	CE_INTVAL_V(g_scaler, 3),
+	CE_INTVAL(soft_scaling),
 	CE_INTVAL(g_gamma),
 	CE_INTVAL(g_layer_x),
 	CE_INTVAL(g_layer_y),
@@ -2560,10 +2562,8 @@ void menu_init(void)
 	me_enable(e_menu_keyconfig, MA_CTRL_DEADZONE, MENU_SHOW_DEADZONE);
 	me_enable(e_menu_options, MA_OPT_DISP_OPTS, MENU_SHOW_DISPLAY);
 
-#ifdef TRIMUI
-	me_enable(e_menu_plugin_options, MA_PLUG_PEOPS, FALSE);
-	me_enable(e_menu_plugin_options, MA_PLUG_PEOPSGL, FALSE);
-#endif
+	me_enable(e_menu_plugin_options, MA_PLUG_PEOPS, MENU_SHOW_PEOPS);
+	me_enable(e_menu_plugin_options, MA_PLUG_PEOPSGL, MENU_SHOW_PEOPS);
 }
 
 void menu_notify_mode_change(int w, int h, int bpp)

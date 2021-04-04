@@ -83,11 +83,27 @@ enum sched_action {
 
 #define SACTION_GUN_MASK (0x0f << SACTION_GUN_TRIGGER)
 
+#ifdef MENU_SHOULDER_COMBO
+int emu_menu_press;
+int emu_menu_cancel;
+#endif
+
 static inline void emu_set_action(enum sched_action action_)
 {
 	extern enum sched_action emu_action, emu_action_old;
 	extern int stop;
 
+#ifdef MENU_SHOULDER_COMBO
+	if (action_ == SACTION_NONE) {
+		if (emu_menu_press && !emu_menu_cancel)
+			action_ = SACTION_ENTER_MENU;
+		emu_menu_press = 0;
+		emu_menu_cancel = 0;
+	} else if (action_ == SACTION_ENTER_MENU) {
+		emu_menu_press = 1;
+		action_ = SACTION_NONE;
+	}
+#endif
 	if (action_ == SACTION_NONE)
 		emu_action_old = 0;
 	else if (action_ != emu_action_old)

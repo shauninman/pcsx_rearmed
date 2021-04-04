@@ -176,35 +176,71 @@ void plat_minimize(void)
 {
 }
 
-#define make_flip_func(name, scale, blitfunc)                                           \
-  static void name(int doffs, const void *vram_, int w, int h, int sstride, int bgr24)  \
-  {                                                                                     \
-    const unsigned short *vram = vram_;                                                 \
-    unsigned char *conv = (unsigned char *)cspace_buf;                                  \
-    unsigned char *dst = (unsigned char *)screen->pixels +                              \
-      (fb_offset_y * 320 + fb_offset_x) * sizeof(uint16_t);                             \
-    int dst_stride = 640;                                                               \
-    int len = psx_src_width * psx_bpp / 8;                                              \
-    int i;                                                                              \
-    void (*convertfunc)(void *dst, const void *src, int bytes);                         \
-    convertfunc = psx_bpp == 24 ? bgr888_to_rgb565 : bgr555_to_rgb565;                  \
-                                                                                        \
-    SDL_LockSurface(screen);                                                            \
-    vram += psx_offset_y * 1024 + psx_offset_x;                                         \
-    for (i = psx_src_height; i > 0; i--,                                                \
-           vram += psx_step * 1024,                                                     \
-           dst += dst_stride,                                                           \
-           conv += dst_stride)  {                                                       \
-      if (scale) {                                                                      \
-        convertfunc(conv, vram, len);                                                   \
-        blitfunc(dst, conv, dst_stride);                                                \
-      } else {                                                                          \
-        convertfunc(dst, vram, len);                                                    \
-      }                                                                                 \
-    }                                                                                   \
-    SDL_UnlockSurface(screen);                                                          \
+#define EXTRACT(c, mask, offset) ((c >> offset) & mask)
+#define BLENDCHANNEL(cl, cm, cr, mask, offset) ((((EXTRACT(cl, mask, offset) + 2 * EXTRACT(cm, mask, offset) + EXTRACT(cr, mask, offset)) >> 2) & mask) << offset)
+#define BLENDB(cl, cm, cr) BLENDCHANNEL(cl, cm, cr, 0b0000000000011111, 0)
+#define BLENDG(cl, cm, cr) BLENDCHANNEL(cl, cm, cr, 0b0000011111100000, 0)
+#define BLENDR(cl, cm, cr) BLENDCHANNEL(cl, cm, cr, 0b0011111000000000, 2)
+static void blit320_256(unsigned char *dst8, const unsigned char *src8, int unused)
+{
+	int source = 0;
+	int x;
+	uint16_t *src = (uint16_t *)src8;
+	uint16_t *dst = (uint16_t *)dst8;
+
+	for (x = 0; x < 320/5; x++)
+	{
+		register uint16_t a, b, c, d;
+
+		a = src[source];
+		b = src[source+1];
+		c = src[source+2];
+		d = src[source+3];
+
+		*dst++ = a;
+		*dst++ = b;
+		*dst++ = BLENDB(b, b, c) | BLENDG(b, c, c) | BLENDR(c, c, c);
+		*dst++ = BLENDB(c, c, c) | BLENDG(c, c, d) | BLENDR(c, d, d);
+		*dst++ = d;
+
+		source+=4;
+	}
+}
+
+#define make_flip_func(name, scale, blitfunc)                                             \
+  static void name(int doffs, const void *vram_, int w_, int h_, int sstride, int bgr24)  \
+  {                                                                                       \
+    const unsigned short *vram = vram_;                                                   \
+    int w = w_ < psx_src_width  ? w_ : psx_src_width;                                     \
+    int h = h_ < psx_src_height ? h_ : psx_src_height;                                    \
+    int dst_offset_x = (fb_offset_x + ((psx_src_width - w) / 2)) * sizeof(uint16_t);      \
+    int dst_offset_y = (fb_offset_y + ((psx_src_height - h) / 2)) * sizeof(uint16_t);     \
+    unsigned char *conv = (unsigned char *)cspace_buf;                                    \
+    unsigned char *dst = (unsigned char *)screen->pixels + dst_offset_y * 320;            \
+    unsigned char *buf = (scale ? conv : dst) + dst_offset_x;                             \
+    int buf_stride = scale ? 640 * sizeof(uint16_t) : 320 * sizeof(uint16_t);             \
+    int dst_stride = 320 * sizeof(uint16_t);                                              \
+    int len = w * psx_bpp / 8;                                                            \
+    int i;                                                                                \
+    void (*convertfunc)(void *dst, const void *src, int bytes);                           \
+    convertfunc = psx_bpp == 24 ? bgr888_to_rgb565 : bgr555_to_rgb565;                    \
+                                                                                          \
+    SDL_LockSurface(screen);                                                              \
+    vram += psx_offset_y * 1024 + psx_offset_x;                                           \
+                                                                                          \
+    for (i = h; i > 0; i--, vram += psx_step * 1024, buf += buf_stride)  {                \
+      convertfunc(buf, vram, len);                                                        \
+    }                                                                                     \
+                                                                                          \
+    if (scale) {                                                                          \
+      for (i = h; i > 0; i--, dst += dst_stride, conv += buf_stride)  {                   \
+        blitfunc(dst, conv, dst_stride);                                                  \
+      }                                                                                   \
+    }                                                                                     \
+    SDL_UnlockSurface(screen);                                                            \
   }
 
+make_flip_func(raw_blit_soft_256, true,  blit320_256)
 make_flip_func(raw_blit_soft,     false, memcpy)
 make_flip_func(raw_blit_soft_368, true,  blit320_368)
 make_flip_func(raw_blit_soft_512, true,  blit320_512)
@@ -223,7 +259,7 @@ void *plat_gvideo_set_mode(int *w_, int *h_, int *bpp_)
 	psx_height = h;
 	psx_bpp = bpp;
 
-	switch (w + (bpp != 16) + !soft_scaling) {
+	switch (w + (bpp != 16)) {
 	case 640:
 		pl_plat_blit = raw_blit_soft_640;
 		w_max = 640;
@@ -236,6 +272,16 @@ void *plat_gvideo_set_mode(int *w_, int *h_, int *bpp_)
 	case 368:
 		pl_plat_blit = raw_blit_soft_368;
 		w_max = 368;
+		break;
+	case 256:
+	case 257:
+		if (soft_scaling) {
+			pl_plat_blit = raw_blit_soft_256;
+			w_max = 256;
+		} else {
+			pl_plat_blit = raw_blit_soft;
+			w_max = 320;
+		}
 		break;
 	default:
 		pl_plat_blit = raw_blit_soft;
@@ -255,7 +301,7 @@ void *plat_gvideo_set_mode(int *w_, int *h_, int *bpp_)
 		w = w_max;
 	}
 	fb_offset_x = 0;
-	if (w < 320)
+	if (w < 320 && !soft_scaling)
 		fb_offset_x = 320/2 - w / 2;
 	if (h > 240) {
 		poff_h = h / 2 - 240/2;
