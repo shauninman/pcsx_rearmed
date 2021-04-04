@@ -218,7 +218,8 @@ static void blit320_256(unsigned char *dst8, const unsigned char *src8, int unus
     unsigned char *conv = (unsigned char *)cspace_buf;                                    \
     unsigned char *dst = (unsigned char *)screen->pixels + dst_offset_y * 320;            \
     unsigned char *buf = (scale ? conv : dst) + dst_offset_x;                             \
-    int dst_stride = 640;                                                                 \
+    int buf_stride = scale ? 640 * sizeof(uint16_t) : 320 * sizeof(uint16_t);             \
+    int dst_stride = 320 * sizeof(uint16_t);                                              \
     int len = w * psx_bpp / 8;                                                            \
     int i;                                                                                \
     void (*convertfunc)(void *dst, const void *src, int bytes);                           \
@@ -227,12 +228,12 @@ static void blit320_256(unsigned char *dst8, const unsigned char *src8, int unus
     SDL_LockSurface(screen);                                                              \
     vram += psx_offset_y * 1024 + psx_offset_x;                                           \
                                                                                           \
-    for (i = h; i > 0; i--, vram += psx_step * 1024, buf += dst_stride)  {                \
+    for (i = h; i > 0; i--, vram += psx_step * 1024, buf += buf_stride)  {                \
       convertfunc(buf, vram, len);                                                        \
     }                                                                                     \
                                                                                           \
     if (scale) {                                                                          \
-      for (i = h; i > 0; i--, dst += dst_stride, conv += dst_stride)  {                   \
+      for (i = h; i > 0; i--, dst += dst_stride, conv += buf_stride)  {                   \
         blitfunc(dst, conv, dst_stride);                                                  \
       }                                                                                   \
     }                                                                                     \
