@@ -407,6 +407,7 @@ static const struct {
 	CE_CONFIG_VAL(Cpu),
 	CE_INTVAL(region),
 	CE_INTVAL_V(g_scaler, 3),
+	CE_INTVAL(soft_scaling),
 	CE_INTVAL(g_gamma),
 	CE_INTVAL(g_layer_x),
 	CE_INTVAL(g_layer_y),
