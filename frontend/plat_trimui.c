@@ -99,19 +99,19 @@ const struct menu_keymap in_sdl_joy_map[] =
 };
 
 static const char * const in_sdl_key_names[SDLK_LAST] = {
-	[SDLK_UP]         = "up",
-	[SDLK_DOWN]       = "down",
-	[SDLK_LEFT]       = "left",
-	[SDLK_RIGHT]      = "right",
-	[SDLK_LSHIFT]     = "x",
-	[SDLK_LCTRL]      = "b",
-	[SDLK_SPACE]      = "a",
-	[SDLK_LALT]       = "y",
-	[SDLK_RETURN]     = "start",
-	[SDLK_RCTRL]      = "select",
-	[SDLK_TAB]        = "l",
-	[SDLK_BACKSPACE]  = "r",
-	[SDLK_ESCAPE]     = "menu",
+	[SDLK_UP]         = "UP",
+	[SDLK_DOWN]       = "DOWN",
+	[SDLK_LEFT]       = "LEFT",
+	[SDLK_RIGHT]      = "RIGHT",
+	[SDLK_LSHIFT]     = "X",
+	[SDLK_LCTRL]      = "B",
+	[SDLK_SPACE]      = "A",
+	[SDLK_LALT]       = "Y",
+	[SDLK_RETURN]     = "START",
+	[SDLK_RCTRL]      = "SELECT",
+	[SDLK_TAB]        = "L",
+	[SDLK_BACKSPACE]  = "R",
+	[SDLK_ESCAPE]     = "MENU",
 };
 
 static const struct in_pdata in_sdl_platform_data = {
