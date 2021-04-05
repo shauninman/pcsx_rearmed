@@ -344,7 +344,7 @@ static void menu_set_defconfig(void)
 	volume_boost = 0;
 	frameskip = 0;
 	analog_deadzone = 50;
-	soft_scaling = 1;
+	soft_scaling = 0;
 	soft_filter = 0;
 	scanlines = 0;
 	scanline_level = 20;
