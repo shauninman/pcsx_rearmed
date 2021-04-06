@@ -1119,10 +1119,10 @@ static void tmp_key_config_loop(const me_bind_action *opts, int opt_cnt, int pla
 		draw_key_config(opts, opt_cnt, player_idx, sel, dev_id, dev_count, 0);
 		
 		menu_draw_begin(0, 1);
-		smalltext_out16(g_menuscreen_h - 20, (11 + 0) * me_mfont_h, "Hold MENU and", 0xffff);
-		smalltext_out16(g_menuscreen_h - 20, (11 + 1) * me_mfont_h, "press L1/R1", 0xffff);
-		smalltext_out16(g_menuscreen_h - 20, (11 + 2) * me_mfont_h, "to press L2/R2", 0xffff);
-		smalltext_out16(g_menuscreen_h - 20, (11 + 3) * me_mfont_h, "(or vice versa)", 0xffff);
+		smalltext_out16(220, (11 + 0) * me_mfont_h, "Hold MENU and", 0xffff);
+		smalltext_out16(220, (11 + 1) * me_mfont_h, "press L1/R1", 0xffff);
+		smalltext_out16(220, (11 + 2) * me_mfont_h, "to press L2/R2", 0xffff);
+		smalltext_out16(220, (11 + 3) * me_mfont_h, "(or vice versa)", 0xffff);
 		menu_draw_end();
 		
 		mkey = in_menu_wait(PBTN_UP|PBTN_DOWN|PBTN_LEFT|PBTN_RIGHT
