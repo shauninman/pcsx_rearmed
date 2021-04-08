@@ -597,6 +597,11 @@ static void check_memcards(void)
 
 int main(int argc, char *argv[])
 {
+#ifdef MINUI_MENU
+	puts("opening mmenu...");
+	mmenu = dlopen("libmmenu.so", RTLD_LAZY);
+#endif 
+	
 	char file[MAXPATHLEN] = "";
 	char path[MAXPATHLEN];
 	const char *cdfile = NULL;
@@ -740,9 +745,6 @@ int main(int argc, char *argv[])
 	pl_start_watchdog();
 
 #ifdef MINUI_MENU
-	puts("opening mmenu...");
-	mmenu = dlopen("libmmenu.so", RTLD_LAZY);
-	
 	// build save_path_template
 	char fmt[MAXPATHLEN];
 	MAKE_PATH(fmt, STATES_DIR, "%.32s-%.9s.%3.3d");

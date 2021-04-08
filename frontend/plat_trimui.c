@@ -34,7 +34,7 @@
 #include "libpicofe/in_sdl.h"
 #include "../libpcsxcore/psxmem_map.h"
 
-SDL_Surface* screen;
+static SDL_Surface* screen;
 struct plat_target plat_target;
 
 static unsigned short *psx_vram;
