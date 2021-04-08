@@ -87,10 +87,15 @@ static __attribute__((noinline)) int get_cpu_ticks(void)
 	return ret;
 }
 
+#ifdef MINUI_MENU
 static int allow_hud_print = 0;
+#endif
+
 static void hud_print(void *fb, int w, int x, int y, const char *text)
 {
+#ifdef MINUI_MENU
 	if (!allow_hud_print) return;
+#endif
 	
 	if (pl_plat_hud_print)
 		pl_plat_hud_print(x, y, text, pl_vout_bpp);
@@ -117,11 +122,15 @@ static void print_msg(int h, int border)
 
 static void print_fps(int h, int border)
 {
+#ifdef MINUI_MENU
 	allow_hud_print = 1;
+#endif
 	hud_printf(pl_vout_buf, pl_vout_w, border + 2, h - HUD_HEIGHT,
 		"%2d %4.1f", pl_rearmed_cbs.flips_per_sec,
 		pl_rearmed_cbs.vsps_cur);
+#ifdef MINUI_MENU
 	allow_hud_print = 0;
+#endif
 }
 
 static void print_cpu_usage(int w, int h, int border)

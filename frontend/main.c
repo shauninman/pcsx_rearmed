@@ -23,6 +23,7 @@
 #include "plat.h"
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/cheat.h"
+#include "../libpcsxcore/cdrom.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
 #include "../plugins/dfsound/spu_config.h"
@@ -42,7 +43,7 @@ static void check_memcards(void);
 #define BOOT_MSG "Booting up..."
 #endif
 
-#ifdef TRIMUI
+#ifdef MINUI_MENU
 #include <dlfcn.h>
 #include <mmenu.h>
 // static void* mmenu = NULL;
@@ -96,7 +97,7 @@ void set_cd_image(const char *fname)
 {
 	const char *ext = NULL;
 	
-#ifdef TRIMUI
+#ifdef MINUI_MENU
 	strcpy(rom_path, fname);
 #endif
 	
@@ -189,6 +190,7 @@ void emu_set_default_config(void)
 	in_type[1] = PSE_PAD_TYPE_STANDARD;
 }
 
+#ifdef MINUI_MENU
 static void change_disc(char* path)
 {
 	CdromId[0] = '\0';
@@ -211,6 +213,7 @@ static void get_file(char* path, char* buffer) {
 	fclose(file);
 	buffer[size] = '\0';
 }
+#endif
 
 void do_emu_action(void)
 {
@@ -230,7 +233,7 @@ void do_emu_action(void)
 #ifndef NO_FRONTEND
 	case SACTION_ENTER_MENU:
 		toggle_fast_forward(1);
-#ifdef TRIMUI
+#ifdef MINUI_MENU
 		// if (mmenu)
 		{
 			// ShowMenu_t ShowMenu = (ShowMenu_t)dlsym(mmenu, "ShowMenu");
@@ -736,7 +739,8 @@ int main(int argc, char *argv[])
 
 	pl_start_watchdog();
 
-#ifdef TRIMUI
+#ifdef MINUI_MENU
+	// puts("opening mmenu...");
 	// mmenu = dlopen("libmmenu.so", RTLD_LAZY);
 	
 	// build save_path_template

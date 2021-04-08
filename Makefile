@@ -309,7 +309,13 @@ USE_FRONTEND = 1
 CFLAGS += -DGPULIB_USE_MMAP -DGPU_UNAI_USE_INT_DIV_MULTINV -DMENU_SHOULDER_COMBO -fomit-frame-pointer -ffast-math -ffunction-sections -fsingle-precision-constant
 CFLAGS += $(SDL_CFLAGS) -DTRIMUI
 LDFLAGS += $(CFLAGS) $(SDL_LDFLAGS) -flto -fwhole-program
-LDLIBS += -lSDL_image -lSDL_ttf -lmmenu
+
+MINUI_MENU = 1
+ifeq ($(MINUI_MENU), 1)
+CFLAGS += -DMINUI_MENU
+LDLIBS += -DMINUI_MENU -lSDL_image -lSDL_ttf -lmmenu
+endif
+
 endif
 ifeq "$(PLATFORM)" "maemo"
 OBJS += maemo/hildon.o maemo/main.o maemo/maemo_xkb.o frontend/pl_gun_ts.o
