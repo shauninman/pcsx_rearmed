@@ -46,7 +46,7 @@ static void check_memcards(void);
 #ifdef MINUI_MENU
 #include <dlfcn.h>
 #include <mmenu.h>
-// static void* mmenu = NULL;
+static void* mmenu = NULL;
 char rom_path[MAXPATHLEN];
 char save_path[MAXPATHLEN];
 #endif
@@ -234,9 +234,9 @@ void do_emu_action(void)
 	case SACTION_ENTER_MENU:
 		toggle_fast_forward(1);
 #ifdef MINUI_MENU
-		// if (mmenu)
+		if (mmenu)
 		{
-			// ShowMenu_t ShowMenu = (ShowMenu_t)dlsym(mmenu, "ShowMenu");
+			ShowMenu_t ShowMenu = (ShowMenu_t)dlsym(mmenu, "ShowMenu");
 			SDL_Surface *screen = SDL_GetVideoSurface();
 			MenuReturnStatus status = ShowMenu(rom_path, save_path, screen, kMenuEventKeyDown);
 
@@ -268,9 +268,9 @@ void do_emu_action(void)
 			sdlevent.key.keysym.sym = SDLK_ESCAPE;
 			SDL_PushEvent(&sdlevent);
 		}
-		// else {
-		// 	menu_loop();
-		// }
+		else {
+			menu_loop();
+		}
 #else
 		menu_loop();
 #endif
@@ -740,8 +740,8 @@ int main(int argc, char *argv[])
 	pl_start_watchdog();
 
 #ifdef MINUI_MENU
-	// puts("opening mmenu...");
-	// mmenu = dlopen("libmmenu.so", RTLD_LAZY);
+	puts("opening mmenu...");
+	mmenu = dlopen("libmmenu.so", RTLD_LAZY);
 	
 	// build save_path_template
 	char fmt[MAXPATHLEN];

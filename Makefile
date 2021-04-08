@@ -313,7 +313,8 @@ LDFLAGS += $(CFLAGS) $(SDL_LDFLAGS) -flto -fwhole-program
 MINUI_MENU = 1
 ifeq ($(MINUI_MENU), 1)
 CFLAGS += -DMINUI_MENU
-LDLIBS += -DMINUI_MENU -lSDL_image -lSDL_ttf -lmmenu
+LDLIBS += -DMINUI_MENU -lSDL_image -lSDL_ttf
+# -lmmenu
 endif
 
 endif
