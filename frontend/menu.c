@@ -883,7 +883,9 @@ me_bind_action emuctrl_actions[] =
 #if MENU_SHOW_FULLSCREEN
 	{ "Toggle fullscreen", 1 << SACTION_TOGGLE_FULLSCREEN },
 #endif
+#ifndef MINUI_MENU
 	{ "Enter Menu       ", 1 << SACTION_ENTER_MENU },
+#endif
 	{ "Gun Trigger      ", 1 << SACTION_GUN_TRIGGER },
 	{ "Gun A button     ", 1 << SACTION_GUN_A },
 	{ "Gun B button     ", 1 << SACTION_GUN_B },
@@ -1085,6 +1087,10 @@ static void keys_load_all(const char *cfg)
 			else
 				lprintf("config: unhandled action \"%s\"\n", act);
 		}
+		
+#ifdef MINUI_MENU
+		in_config_bind_key(dev_id, "MENU", 1 << SACTION_ENTER_MENU, IN_BINDTYPE_EMU); // TRIMUI
+#endif
 	}
 	in_clean_binds();
 }
