@@ -47,8 +47,8 @@ static void check_memcards(void);
 #include <dlfcn.h>
 #include <mmenu.h>
 static void* mmenu = NULL;
-char rom_path[MAXPATHLEN];
-char save_path[MAXPATHLEN];
+static char rom_path[MAXPATHLEN];
+static char save_path[MAXPATHLEN];
 #endif
 
 // don't include debug.h - it breaks ARM build (R1 redefined)
@@ -597,11 +597,6 @@ static void check_memcards(void)
 
 int main(int argc, char *argv[])
 {
-#ifdef MINUI_MENU
-	puts("opening mmenu...");
-	mmenu = dlopen("libmmenu.so", RTLD_LAZY);
-#endif 
-	
 	char file[MAXPATHLEN] = "";
 	char path[MAXPATHLEN];
 	const char *cdfile = NULL;
@@ -669,6 +664,16 @@ int main(int argc, char *argv[])
 			}
 		}
 	}
+	
+#ifdef MINUI_MENU
+	puts("opening mmenu...");
+	mmenu = dlopen("libmmenu.so", RTLD_LAZY);
+	
+	if (mmenu) {
+		ResumeSlot_t ResumeSlot = (ResumeSlot_t)dlsym(mmenu, "ResumeSlot");
+		if (ResumeSlot) loadst = ResumeSlot() + 1; // just override existing command line argument
+	}
+#endif 
 
 	if (cdfile)
 		set_cd_image(cdfile);
