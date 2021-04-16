@@ -226,11 +226,13 @@ void do_emu_action(void)
 #ifdef MINUI_MENU
 		if (mmenu)
 		{
-			ShowMenu_t ShowMenu = (ShowMenu_t)dlsym(mmenu, "ShowMenu");
-			ChangeDisc_t ChangeDisc = (ChangeDisc_t)dlsym(mmenu, "ChangeDisc");
 			SDL_Surface *screen = SDL_GetVideoSurface();
+
+			ShowMenu_t ShowMenu = (ShowMenu_t)dlsym(mmenu, "ShowMenu");
 			MenuReturnStatus status = ShowMenu(rom_path, save_path, screen, kMenuEventKeyDown);
+
 			char disc_path[256];
+			ChangeDisc_t ChangeDisc = (ChangeDisc_t)dlsym(mmenu, "ChangeDisc");
 			
 			if (status==kStatusExitGame) {
 				g_emu_want_quit = 1;
