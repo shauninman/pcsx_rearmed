@@ -203,16 +203,6 @@ static void change_disc(char* path)
 	SetCdOpenCaseTime(time(NULL) + 2);
 	LidInterrupt();
 }
-
-static void get_file(char* path, char* buffer) {
-	FILE *file = fopen(path, "r");
-	fseek(file, 0L, SEEK_END);
-	size_t size = ftell(file);
-	rewind(file);
-	fread(buffer, sizeof(char), size, file);
-	fclose(file);
-	buffer[size] = '\0';
-}
 #endif
 
 void do_emu_action(void)
@@ -237,16 +227,15 @@ void do_emu_action(void)
 		if (mmenu)
 		{
 			ShowMenu_t ShowMenu = (ShowMenu_t)dlsym(mmenu, "ShowMenu");
+			ChangeDisc_t ChangeDisc = (ChangeDisc_t)dlsym(mmenu, "ChangeDisc");
 			SDL_Surface *screen = SDL_GetVideoSurface();
 			MenuReturnStatus status = ShowMenu(rom_path, save_path, screen, kMenuEventKeyDown);
-
+			char disc_path[256];
+			
 			if (status==kStatusExitGame) {
 				g_emu_want_quit = 1;
 			}
-			else if (status==kStatusChangeDisc && access("/tmp/change_disc.txt", F_OK)==0) {
-				char disc_path[256];
-				get_file("/tmp/change_disc.txt", disc_path);
-				puts(disc_path);
+			else if (status==kStatusChangeDisc && ChangeDisc(disc_path)) {
 				change_disc(disc_path);
 			}
 			else if (status==kStatusOpenMenu) {
