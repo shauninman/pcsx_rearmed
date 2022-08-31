@@ -15,22 +15,6 @@
  *  along with this program; if not, see <http://www.gnu.org/licenses>.
  */
 
-#ifdef NO_SOCKET
-
-int StartServer() { return 0;}
-void StopServer() {}
-void GetClient() {}
-void CloseClient() {}
-int HasClient() { return 0;}
-int ReadSocket(char * buffer, int len) { return 0;}
-int RawReadSocket(char * buffer, int len) { return 0;}
-void WriteSocket(char * buffer, int len) {}
-
-void SetsBlock() {}
-void SetsNonblock() {}
-
-#else // NO_SOCKET
-
 #ifdef _WIN32
 #include <winsock2.h>
 #endif
@@ -135,7 +119,7 @@ void GetClient() {
     }
 #endif
 
-    sprintf(hello, "000 PCSX Version %s - Debug console\r\n", PCSX_VERSION);
+    sprintf(hello, "000 PCSX Version %s - Debug console\r\n", PACKAGE_VERSION);
     WriteSocket(hello, strlen(hello));
     ptr = 0;
 }
@@ -268,4 +252,3 @@ void SetsNonblock() {
     fcntl(server_socket, F_SETFL, flags | O_NONBLOCK);
 #endif
 }
-#endif // NO_SOCKET

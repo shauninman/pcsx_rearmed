@@ -117,20 +117,6 @@ void sioWrite8(unsigned char value) {
 							break;
 					}
 				}
-				// NegCon - Wipeout 3
-				if( buf[parp] == 0x23 ) {
-					switch (value) {
-						// enter config mode
-						case 0x43:
-							buf[1] = 0x79;
-							break;
-
-						// get status
-						case 0x45:
-							buf[1] = 0xf3;
-							break;
-					}
-				}
 			}
 			else padst = 0;
 			return;
@@ -423,12 +409,6 @@ void LoadMcd(int mcd, char *str) {
 	}
 
 	McdDisable[mcd - 1] = 0;
-#ifdef HAVE_LIBRETRO
-	// memcard1 is handled by libretro
-	if (mcd == 1)
-		return;
-#endif
-
 	if (str == NULL || strcmp(str, "none") == 0) {
 		McdDisable[mcd - 1] = 1;
 		return;

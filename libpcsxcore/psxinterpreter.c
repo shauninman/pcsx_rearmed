@@ -25,7 +25,10 @@
 #include "r3000a.h"
 #include "gte.h"
 #include "psxhle.h"
-#include "debug.h"
+#include "psxinterpreter.h"
+#include <assert.h>
+//#include "debug.h"
+#define ProcessDebug()
 
 static int branch = 0;
 static int branch2 = 0;
@@ -39,8 +42,6 @@ static u32 branchPC;
 #define debugI()
 #endif
 
-void execI();
-
 // Subsets
 void (*psxBSC[64])();
 void (*psxSPC[64])();
@@ -48,6 +49,53 @@ void (*psxREG[32])();
 void (*psxCP0[32])();
 void (*psxCP2[64])(struct psxCP2Regs *regs);
 void (*psxCP2BSC[32])();
+
+static u32 fetchNoCache(u32 pc)
+{
+	u32 *code = (u32 *)PSXM(pc);
+	return ((code == NULL) ? 0 : SWAP32(*code));
+}
+
+/*
+Formula One 2001 :
+Use old CPU cache code when the RAM location is updated with new code (affects in-game racing)
+*/
+static struct cache_entry {
+	u32 tag;
+	u32 data[4];
+} ICache[256];
+
+static u32 fetchICache(u32 pc)
+{
+	// cached?
+	if (pc < 0xa0000000)
+	{
+		// this is not how the hardware works but whatever
+		struct cache_entry *entry = &ICache[(pc & 0xff0) >> 4];
+
+		if (((entry->tag ^ pc) & 0xfffffff0) != 0 || pc < entry->tag)
+		{
+			u32 *code = (u32 *)PSXM(pc & ~0x0f);
+			if (!code)
+				return 0;
+
+			entry->tag = pc;
+			// treat as 4 words, although other configurations are said to be possible
+			switch (pc & 0x0c)
+			{
+				case 0x00: entry->data[0] = SWAP32(code[0]);
+				case 0x04: entry->data[1] = SWAP32(code[1]);
+				case 0x08: entry->data[2] = SWAP32(code[2]);
+				case 0x0c: entry->data[3] = SWAP32(code[3]);
+			}
+		}
+		return entry->data[(pc & 0x0f) >> 2];
+	}
+
+	return fetchNoCache(pc);
+}
+
+u32 (*fetch)(u32 pc) = fetchNoCache;
 
 static void delayRead(int reg, u32 bpc) {
 	u32 rold, rnew;
@@ -263,11 +311,7 @@ int psxTestLoadDelay(int reg, u32 tmp) {
 }
 
 void psxDelayTest(int reg, u32 bpc) {
-	u32 *code;
-	u32 tmp;
-
-	code = (u32 *)PSXM(bpc);
-	tmp = ((code == NULL) ? 0 : SWAP32(*code));
+	u32 tmp = fetch(bpc);
 	branch = 1;
 
 	switch (psxTestLoadDelay(reg, tmp)) {
@@ -287,11 +331,9 @@ void psxDelayTest(int reg, u32 bpc) {
 }
 
 static u32 psxBranchNoDelay(void) {
-	u32 *code;
 	u32 temp;
 
-	code = (u32 *)PSXM(psxRegs.pc);
-	psxRegs.code = ((code == NULL) ? 0 : SWAP32(*code));
+	psxRegs.code = fetch(psxRegs.pc);
 	switch (_Op_) {
 		case 0x00: // SPECIAL
 			switch (_Funct_) {
@@ -409,7 +451,6 @@ static int psxDelayBranchTest(u32 tar1) {
 }
 
 static void doBranch(u32 tar) {
-	u32 *code;
 	u32 tmp;
 
 	branch2 = branch = 1;
@@ -419,8 +460,7 @@ static void doBranch(u32 tar) {
 	if (psxDelayBranchTest(tar))
 		return;
 
-	code = (u32 *)PSXM(psxRegs.pc);
-	psxRegs.code = ((code == NULL) ? 0 : SWAP32(*code));
+	psxRegs.code = fetch(psxRegs.pc);
 
 	debugI();
 
@@ -501,14 +541,32 @@ void psxSLTU() 	{ if (!_Rd_) return; _rRd_ = _u32(_rRs_) < _u32(_rRt_); }	// Rd 
 * Format:  OP rs, rt                                     *
 *********************************************************/
 void psxDIV() {
-	if (_i32(_rRt_) != 0) {
-		_i32(_rLo_) = _i32(_rRs_) / _i32(_rRt_);
-		_i32(_rHi_) = _i32(_rRs_) % _i32(_rRt_);
-	}
-	else {
-		_i32(_rLo_) = _i32(_rRs_) >= 0 ? 0xffffffff : 1;
-		_i32(_rHi_) = _i32(_rRs_);
-	}
+    if (!_i32(_rRt_)) {
+        _i32(_rHi_) = _i32(_rRs_);
+        if (_i32(_rRs_) & 0x80000000) {
+            _i32(_rLo_) = 1;
+        } else {
+            _i32(_rLo_) = 0xFFFFFFFF;
+        }
+/*
+ * Notaz said that this was "not needed" for ARM platforms and could slow it down so let's disable for ARM. 
+ * This fixes a crash issue that can happen when running Amidog's CPU test.
+ * (It still stays stuck to a black screen but at least it doesn't crash anymore)
+ */
+#if !defined(__arm__) && !defined(__aarch64__)
+    } else if (_i32(_rRs_) == 0x80000000 && _i32(_rRt_) == 0xFFFFFFFF) {
+        _i32(_rLo_) = 0x80000000;
+        _i32(_rHi_) = 0;
+#endif
+    } else {
+        _i32(_rLo_) = _i32(_rRs_) / _i32(_rRt_);
+        _i32(_rHi_) = _i32(_rRs_) % _i32(_rRt_);
+    }
+}
+
+void psxDIV_stall() {
+	psxRegs.muldivBusyCycle = psxRegs.cycle + 37;
+	psxDIV();
 }
 
 void psxDIVU() {
@@ -522,11 +580,25 @@ void psxDIVU() {
 	}
 }
 
+void psxDIVU_stall() {
+	psxRegs.muldivBusyCycle = psxRegs.cycle + 37;
+	psxDIVU();
+}
+
 void psxMULT() {
 	u64 res = (s64)((s64)_i32(_rRs_) * (s64)_i32(_rRt_));
 
 	psxRegs.GPR.n.lo = (u32)(res & 0xffffffff);
 	psxRegs.GPR.n.hi = (u32)((res >> 32) & 0xffffffff);
+}
+
+void psxMULT_stall() {
+	// approximate, but maybe good enough
+	u32 rs = _rRs_;
+	u32 lz = __builtin_clz(((rs ^ ((s32)rs >> 21)) | 1));
+	u32 c = 7 + (2 - (lz / 11)) * 4;
+	psxRegs.muldivBusyCycle = psxRegs.cycle + c;
+	psxMULT();
 }
 
 void psxMULTU() {
@@ -536,12 +608,20 @@ void psxMULTU() {
 	psxRegs.GPR.n.hi = (u32)((res >> 32) & 0xffffffff);
 }
 
+void psxMULTU_stall() {
+	// approximate, but maybe good enough
+	u32 lz = __builtin_clz(_rRs_ | 1);
+	u32 c = 7 + (2 - (lz / 11)) * 4;
+	psxRegs.muldivBusyCycle = psxRegs.cycle + c;
+	psxMULTU();
+}
+
 /*********************************************************
 * Register branch logic                                  *
 * Format:  OP rs, offset                                 *
 *********************************************************/
 #define RepZBranchi32(op)      if(_i32(_rRs_) op 0) doBranch(_BranchTarget_);
-#define RepZBranchLinki32(op)  if(_i32(_rRs_) op 0) { _SetLink(31); doBranch(_BranchTarget_); }
+#define RepZBranchLinki32(op)  { _SetLink(31); if(_i32(_rRs_) op 0) { doBranch(_BranchTarget_); } }
 
 void psxBGEZ()   { RepZBranchi32(>=) }      // Branch if Rs >= 0
 void psxBGEZAL() { RepZBranchLinki32(>=) }  // Branch if Rs >= 0 and link
@@ -562,9 +642,9 @@ void psxSRL() { if (!_Rd_) return; _u32(_rRd_) = _u32(_rRt_) >> _Sa_; } // Rd = 
 * Shift arithmetic with variant register shift           *
 * Format:  OP rd, rt, rs                                 *
 *********************************************************/
-void psxSLLV() { if (!_Rd_) return; _u32(_rRd_) = _u32(_rRt_) << _u32(_rRs_); } // Rd = Rt << rs
-void psxSRAV() { if (!_Rd_) return; _i32(_rRd_) = _i32(_rRt_) >> _u32(_rRs_); } // Rd = Rt >> rs (arithmetic)
-void psxSRLV() { if (!_Rd_) return; _u32(_rRd_) = _u32(_rRt_) >> _u32(_rRs_); } // Rd = Rt >> rs (logical)
+void psxSLLV() { if (!_Rd_) return; _u32(_rRd_) = _u32(_rRt_) << (_u32(_rRs_) & 0x1F); } // Rd = Rt << rs
+void psxSRAV() { if (!_Rd_) return; _i32(_rRd_) = _i32(_rRt_) >> (_u32(_rRs_) & 0x1F); } // Rd = Rt >> rs (arithmetic)
+void psxSRLV() { if (!_Rd_) return; _u32(_rRd_) = _u32(_rRt_) >> (_u32(_rRs_) & 0x1F); } // Rd = Rt >> rs (logical)
 
 /*********************************************************
 * Load higher 16 bits of the first word in GPR with imm  *
@@ -579,6 +659,18 @@ void psxLUI() { if (!_Rt_) return; _u32(_rRt_) = psxRegs.code << 16; } // Upper 
 void psxMFHI() { if (!_Rd_) return; _rRd_ = _rHi_; } // Rd = Hi
 void psxMFLO() { if (!_Rd_) return; _rRd_ = _rLo_; } // Rd = Lo
 
+static void mflohiCheckStall(void)
+{
+	u32 left = psxRegs.muldivBusyCycle - psxRegs.cycle;
+	if (left <= 37) {
+		//printf("muldiv stall %u\n", left);
+		psxRegs.cycle = psxRegs.muldivBusyCycle;
+	}
+}
+
+void psxMFHI_stall() { mflohiCheckStall(); psxMFHI(); }
+void psxMFLO_stall() { mflohiCheckStall(); psxMFLO(); }
+
 /*********************************************************
 * Move to GPR to HI/LO & Register jump                   *
 * Format:  OP rs                                         *
@@ -591,7 +683,8 @@ void psxMTLO() { _rLo_ = _rRs_; } // Lo = Rs
 * Format:  OP                                            *
 *********************************************************/
 void psxBREAK() {
-	// Break exception - psx rom doens't handles this
+	psxRegs.pc -= 4;
+	psxException(0x24, branch);
 }
 
 void psxSYSCALL() {
@@ -603,6 +696,7 @@ void psxRFE() {
 //	SysPrintf("psxRFE\n");
 	psxRegs.CP0.n.Status = (psxRegs.CP0.n.Status & 0xfffffff0) |
 						  ((psxRegs.CP0.n.Status & 0x3c) >> 2);
+	psxTestSWInts();
 }
 
 /*********************************************************
@@ -626,14 +720,14 @@ void psxJAL() {	_SetLink(31); doBranch(_JumpTarget_); }
 * Format:  OP rs, rd                                     *
 *********************************************************/
 void psxJR()   {
-	doBranch(_u32(_rRs_));
+	doBranch(_rRs_ & ~3);
 	psxJumpTest();
 }
 
 void psxJALR() {
 	u32 temp = _u32(_rRs_);
 	if (_Rd_) { _SetLink(_Rd_); }
-	doBranch(temp);
+	doBranch(temp & ~3);
 }
 
 /*********************************************************
@@ -836,13 +930,25 @@ void psxCOP2() {
 	psxCP2[_Funct_]((struct psxCP2Regs *)&psxRegs.CP2D);
 }
 
+void psxCOP2_stall() {
+	u32 f = _Funct_;
+	gteCheckStall(f);
+	psxCP2[f]((struct psxCP2Regs *)&psxRegs.CP2D);
+}
+
 void psxBASIC(struct psxCP2Regs *regs) {
 	psxCP2BSC[_Rs_]();
 }
 
 void psxHLE() {
 //	psxHLEt[psxRegs.code & 0xffff]();
-	psxHLEt[psxRegs.code & 0x07]();		// HDHOSHY experimental patch
+//	psxHLEt[psxRegs.code & 0x07]();		// HDHOSHY experimental patch
+    uint32_t hleCode = psxRegs.code & 0x03ffffff;
+    if (hleCode >= (sizeof(psxHLEt) / sizeof(psxHLEt[0]))) {
+        psxNULL();
+    } else {
+        psxHLEt[hleCode]();
+    }
 }
 
 void (*psxBSC[64])() = {
@@ -908,6 +1014,7 @@ static int intInit() {
 }
 
 static void intReset() {
+	memset(&ICache, 0xff, sizeof(ICache));
 }
 
 void intExecute() {
@@ -924,13 +1031,61 @@ void intExecuteBlock() {
 static void intClear(u32 Addr, u32 Size) {
 }
 
+void intNotify (int note, void *data) {
+	/* Gameblabla - Only clear the icache if it's isolated */
+	if (note == R3000ACPU_NOTIFY_CACHE_ISOLATED)
+	{
+		memset(&ICache, 0xff, sizeof(ICache));
+	}
+}
+
+void intApplyConfig() {
+	assert(psxBSC[18] == psxCOP2  || psxBSC[18] == psxCOP2_stall);
+	assert(psxBSC[50] == gteLWC2  || psxBSC[50] == gteLWC2_stall);
+	assert(psxBSC[58] == gteSWC2  || psxBSC[58] == gteSWC2_stall);
+	assert(psxSPC[16] == psxMFHI  || psxSPC[16] == psxMFHI_stall);
+	assert(psxSPC[18] == psxMFLO  || psxSPC[18] == psxMFLO_stall);
+	assert(psxSPC[24] == psxMULT  || psxSPC[24] == psxMULT_stall);
+	assert(psxSPC[25] == psxMULTU || psxSPC[25] == psxMULTU_stall);
+	assert(psxSPC[26] == psxDIV   || psxSPC[26] == psxDIV_stall);
+	assert(psxSPC[27] == psxDIVU  || psxSPC[27] == psxDIVU_stall);
+
+	if (Config.DisableStalls) {
+		psxBSC[18] = psxCOP2;
+		psxBSC[50] = gteLWC2;
+		psxBSC[58] = gteSWC2;
+		psxSPC[16] = psxMFHI;
+		psxSPC[18] = psxMFLO;
+		psxSPC[24] = psxMULT;
+		psxSPC[25] = psxMULTU;
+		psxSPC[26] = psxDIV;
+		psxSPC[27] = psxDIVU;
+	} else {
+		psxBSC[18] = psxCOP2_stall;
+		psxBSC[50] = gteLWC2_stall;
+		psxBSC[58] = gteSWC2_stall;
+		psxSPC[16] = psxMFHI_stall;
+		psxSPC[18] = psxMFLO_stall;
+		psxSPC[24] = psxMULT_stall;
+		psxSPC[25] = psxMULTU_stall;
+		psxSPC[26] = psxDIV_stall;
+		psxSPC[27] = psxDIVU_stall;
+	}
+
+	// dynarec may occasionally call the interpreter, in such a case the
+	// cache won't work (cache only works right if all fetches go through it)
+	if (!Config.icache_emulation || psxCpu != &psxInt)
+		fetch = fetchNoCache;
+	else
+		fetch = fetchICache;
+}
+
 static void intShutdown() {
 }
 
 // interpreter execution
 void execI() {
-	u32 *code = (u32 *)PSXM(psxRegs.pc);
-	psxRegs.code = ((code == NULL) ? 0 : SWAP32(*code));
+	psxRegs.code = fetch(psxRegs.pc);
 
 	debugI();
 
@@ -948,5 +1103,7 @@ R3000Acpu psxInt = {
 	intExecute,
 	intExecuteBlock,
 	intClear,
+	intNotify,
+	intApplyConfig,
 	intShutdown
 };

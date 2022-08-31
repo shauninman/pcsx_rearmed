@@ -16,22 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../gpulib/gpu.h"
-
-#ifdef THREAD_RENDERING
-#include "../gpulib/gpulib_thread_if.h"
-#define do_cmd_list real_do_cmd_list
-#define renderer_init real_renderer_init
-#define renderer_finish real_renderer_finish
-#define renderer_sync_ecmds real_renderer_sync_ecmds
-#define renderer_update_caches real_renderer_update_caches
-#define renderer_flush_queues real_renderer_flush_queues
-#define renderer_set_interlace real_renderer_set_interlace
-#define renderer_set_config real_renderer_set_config
-#define renderer_notify_res_change real_renderer_notify_res_change
-#define renderer_notify_update_lace real_renderer_notify_update_lace
-#define renderer_sync real_renderer_sync
-#define ex_regs scratch_ex_regs
-#endif
+#include "../../include/arm_features.h"
 
 #define u32 uint32_t
 
@@ -53,10 +38,10 @@
 
 // byteswappings
 
-#define SWAP16(x) ({ uint16_t y=(x); (((y)>>8 & 0xff) | ((y)<<8 & 0xff00)); })
-#define SWAP32(x) ({ uint32_t y=(x); (((y)>>24 & 0xfful) | ((y)>>8 & 0xff00ul) | ((y)<<8 & 0xff0000ul) | ((y)<<24 & 0xff000000ul)); })
+#define SWAP16(x) __builtin_bswap16(x)
+#define SWAP32(x) __builtin_bswap32(x)
 
-#ifdef __BIG_ENDIAN__
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 
 // big endian config
 #define HOST2LE32(x) SWAP32(x)
@@ -84,16 +69,15 @@
 
 #endif
 
-#define GETLEs16(X) ((int16_t)GETLE16((uint16_t *)X))
-#define GETLEs32(X) ((int16_t)GETLE32((uint16_t *)X))
+#define GETLEs16(X) ((int16_t)GETLE16((uint16_t *)(X)))
 
-#define GETLE16(X) LE2HOST16(*(uint16_t *)X)
-#define GETLE32_(X) LE2HOST32(*(uint32_t *)X)
-#define GETLE16D(X) ({uint32_t val = GETLE32(X); (val<<16 | val >> 16);})
-#define PUTLE16(X, Y) do{*((uint16_t *)X)=HOST2LE16((uint16_t)Y);}while(0)
-#define PUTLE32_(X, Y) do{*((uint32_t *)X)=HOST2LE16((uint32_t)Y);}while(0)
-#ifdef __arm__
-#define GETLE32(X) (*(uint16_t *)(X)|(((uint16_t *)(X))[1]<<16))
+#define GETLE16(X) LE2HOST16(*(uint16_t *)(X))
+#define GETLE32_(X) LE2HOST32(*(uint32_t *)(X))
+#define PUTLE16(X, Y) do{*((uint16_t *)(X))=HOST2LE16((uint16_t)(Y));}while(0)
+#define PUTLE32_(X, Y) do{*((uint32_t *)(X))=HOST2LE32((uint32_t)(Y));}while(0)
+#if defined(__arm__) && !defined(HAVE_ARMV6)
+// for (very) old ARMs with no unaligned loads?
+#define GETLE32(X) (*(uint16_t *)(X)|((uint32_t)((uint16_t *)(X))[1]<<16))
 #define PUTLE32(X, Y) do{uint16_t *p_=(uint16_t *)(X);uint32_t y_=Y;p_[0]=y_;p_[1]=y_>>16;}while(0)
 #else
 #define GETLE32 GETLE32_
@@ -235,18 +219,12 @@ extern int32_t           drawH;
 #define KEY_BADTEXTURES   128
 #define KEY_CHECKTHISOUT  256
 
-#if !defined(__BIG_ENDIAN__) || defined(__x86_64__) || defined(__i386__)
-#ifndef __LITTLE_ENDIAN__
-#define __LITTLE_ENDIAN__
-#endif
-#endif
-
-#ifdef __LITTLE_ENDIAN__
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define RED(x) (x & 0xff)
 #define BLUE(x) ((x>>16) & 0xff)
 #define GREEN(x) ((x>>8) & 0xff)
 #define COLOR(x) (x & 0xffffff)
-#elif defined __BIG_ENDIAN__
+#else
 #define RED(x) ((x>>24) & 0xff)
 #define BLUE(x) ((x>>8) & 0xff)
 #define GREEN(x) ((x>>16) & 0xff)
@@ -275,6 +253,10 @@ BOOL           bCheckMask = FALSE;
 unsigned short sSetMask = 0;
 unsigned long  lSetMask = 0;
 long           lLowerpart;
+
+#if defined(__GNUC__) && __GNUC__ >= 6
+#pragma GCC diagnostic ignored "-Wmisleading-indentation"
+#endif
 
 #include "soft.c"
 #include "prim.c"
@@ -325,15 +307,15 @@ void renderer_notify_res_change(void)
 
 extern const unsigned char cmd_lengths[256];
 
-int do_cmd_list(uint32_t *list, int list_len, int *last_cmd)
+int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
 {
   unsigned int cmd = 0, len;
-  uint32_t *list_start = list;
-  uint32_t *list_end = list + list_len;
+  unsigned int *list_start = list;
+  unsigned int *list_end = list + list_len;
 
   for (; list < list_end; list += 1 + len)
   {
-    cmd = *list >> 24;
+    cmd = GETLE32(list) >> 24;
     len = cmd_lengths[cmd];
     if (list + 1 + len > list_end) {
       cmd = -1;
@@ -344,7 +326,7 @@ int do_cmd_list(uint32_t *list, int list_len, int *last_cmd)
     if (cmd == 0xa0 || cmd == 0xc0)
       break; // image i/o, forward to upper layer
     else if ((cmd & 0xf8) == 0xe0)
-      gpu.ex_regs[cmd & 7] = list[0];
+      gpu.ex_regs[cmd & 7] = GETLE32(list);
 #endif
 
     primTableJ[cmd]((void *)list);
@@ -363,7 +345,7 @@ int do_cmd_list(uint32_t *list, int list_len, int *last_cmd)
             goto breakloop;
           }
 
-          if((*list_position & 0xf000f000) == 0x50005000)
+          if((*list_position & HOST2LE32(0xf000f000)) == HOST2LE32(0x50005000))
             break;
 
           list_position++;
@@ -386,7 +368,7 @@ int do_cmd_list(uint32_t *list, int list_len, int *last_cmd)
             goto breakloop;
           }
 
-          if((*list_position & 0xf000f000) == 0x50005000)
+          if((*list_position & HOST2LE32(0xf000f000)) == HOST2LE32(0x50005000))
             break;
 
           list_position += 2;
@@ -401,8 +383,8 @@ int do_cmd_list(uint32_t *list, int list_len, int *last_cmd)
       case 0xA0:          //  sys -> vid
       {
         short *slist = (void *)list;
-        u32 load_width = slist[4];
-        u32 load_height = slist[5];
+        u32 load_width = LE2HOST32(slist[4]);
+        u32 load_height = LE2HOST32(slist[5]);
         u32 load_size = load_width * load_height;
 
         len += load_size / 2;
@@ -439,14 +421,6 @@ void renderer_flush_queues(void)
 }
 
 void renderer_set_interlace(int enable, int is_odd)
-{
-}
-
-void renderer_sync(void)
-{
-}
-
-void renderer_notify_update_lace(int updated)
 {
 }
 

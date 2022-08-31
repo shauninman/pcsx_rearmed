@@ -128,26 +128,25 @@ static void oss_finish(void)
 }
 
 ////////////////////////////////////////////////////////////////////////
-// GET BUFFER AVAILABLE
-////////////////////////////////////////////////////////////////////////
-
-static float oss_capacity(void)
-{
- audio_buf_info info;
-
- if(oss_audio_fd == -1) return 0;
- if(ioctl(oss_audio_fd,SNDCTL_DSP_GETOSPACE,&info)==-1) return 0;
- if(info.fragstotal == 0) return 0;
- return (float)info.fragments / info.fragstotal;
-}
-
-////////////////////////////////////////////////////////////////////////
 // GET BUFFERED STATUS
 ////////////////////////////////////////////////////////////////////////
 
 static int oss_busy(void)
 {
- return oss_capacity() < 0.5;
+ audio_buf_info info;
+ unsigned long l;
+
+ if(oss_audio_fd == -1) return 1;
+ if(ioctl(oss_audio_fd,SNDCTL_DSP_GETOSPACE,&info)==-1)
+  l=0;
+ else
+  {
+   if(info.fragments<(info.fragstotal>>1))             // can we write in at least the half of fragments?
+        l=1;                                           // -> no? wait
+   else l=0;                                           // -> else go on
+  }
+
+ return l;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -187,5 +186,4 @@ void out_register_oss(struct out_driver *drv)
 	drv->finish = oss_finish;
 	drv->busy = oss_busy;
 	drv->feed = oss_feed;
-  drv->capacity = oss_capacity;
 }

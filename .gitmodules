@@ -1,3 +1,9 @@
-[submodule "frontend/libpicofe"]
+[submodule "libpicofe"]
 	path = frontend/libpicofe
-	url = https://github.com/notaz/libpicofe
+	url = https://github.com/notaz/libpicofe.git
+[submodule "warm"]
+	path = frontend/warm
+	url = https://github.com/notaz/warm.git
+[submodule "libchdr"]
+	path = libchdr
+	url = https://github.com/rtissera/libchdr.git

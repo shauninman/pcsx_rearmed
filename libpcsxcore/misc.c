@@ -21,11 +21,13 @@
 * Miscellaneous functions, including savestates and CD-ROM loading.
 */
 
+#include <stddef.h>
 #include "misc.h"
 #include "cdrom.h"
 #include "mdec.h"
 #include "gpu.h"
 #include "ppf.h"
+#include "database.h"
 #include <zlib.h>
 
 char CdromId[10] = "";
@@ -53,17 +55,11 @@ struct iso_directory_record {
 	char name			[1];
 };
 
-void mmssdd( char *b, char *p )
+static void mmssdd( char *b, char *p )
 {
 	int m, s, d;
-#if defined(__arm__)
-	unsigned char *u = (void *)b;
-	int block = (u[3] << 24) | (u[2] << 16) | (u[1] << 8) | u[0];
-#elif defined(__BIGENDIAN__)
-	int block = (b[0] & 0xff) | ((b[1] & 0xff) << 8) | ((b[2] & 0xff) << 16) | (b[3] << 24);
-#else
-	int block = *((int*)b);
-#endif
+	unsigned char *ub = (void *)b;
+	int block = (ub[3] << 24) | (ub[2] << 16) | (ub[1] << 8) | ub[0];
 
 	block += 150;
 	m = block / 4500;			// minutes
@@ -73,7 +69,7 @@ void mmssdd( char *b, char *p )
 
 	m = ((m / 10) << 4) | m % 10;
 	s = ((s / 10) << 4) | s % 10;
-	d = ((d / 10) << 4) | d % 10;
+	d = ((d / 10) << 4) | d % 10;	
 
 	p[0] = m;
 	p[1] = s;
@@ -180,7 +176,7 @@ int LoadCdrom() {
 	// is just below, do it here
 	fake_bios_gpu_setup();
 
-	if (!Config.HLE && !Config.SlowBoot) {
+	if (!Config.HLE) {
 		// skip BIOS logos
 		psxRegs.pc = psxRegs.GPR.n.ra;
 		return 0;
@@ -191,7 +187,7 @@ int LoadCdrom() {
 	READTRACK();
 
 	// skip head and sub, and go to the root directory record
-	dir = (struct iso_directory_record*) &buf[12+156];
+	dir = (struct iso_directory_record*) &buf[12+156]; 
 
 	mmssdd(dir->extent, (char*)time);
 
@@ -236,13 +232,14 @@ int LoadCdrom() {
 
 	psxRegs.pc = SWAP32(tmpHead.pc0);
 	psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
-	psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr);
+	psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr); 
 	if (psxRegs.GPR.n.sp == 0) psxRegs.GPR.n.sp = 0x801fff00;
 
 	tmpHead.t_size = SWAP32(tmpHead.t_size);
 	tmpHead.t_addr = SWAP32(tmpHead.t_addr);
 
 	psxCpu->Clear(tmpHead.t_addr, tmpHead.t_size / 4);
+	psxCpu->Reset();
 
 	// Read the rest of the main executable
 	while (tmpHead.t_size & ~2047) {
@@ -275,7 +272,7 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	READTRACK();
 
 	// skip head and sub, and go to the root directory record
-	dir = (struct iso_directory_record *)&buf[12 + 156];
+	dir = (struct iso_directory_record *)&buf[12 + 156]; 
 
 	mmssdd(dir->extent, (char*)time);
 
@@ -290,6 +287,7 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	addr = head->t_addr;
 
 	psxCpu->Clear(addr, size / 4);
+	psxCpu->Reset();
 
 	while (size & ~2047) {
 		incTime();
@@ -329,7 +327,7 @@ int CheckCdrom() {
 	strncpy(CdromLabel, buf + 52, 32);
 
 	// skip head and sub, and go to the root directory record
-	dir = (struct iso_directory_record *)&buf[12 + 156];
+	dir = (struct iso_directory_record *)&buf[12 + 156]; 
 
 	mmssdd(dir->extent, (char *)time);
 
@@ -357,14 +355,6 @@ int CheckCdrom() {
 					return -1;
 			}
 		}
-		/* Workaround for Wild Arms EU/US which has non-standard string causing incorrect region detection */
-		if (exename[0] == 'E' && exename[1] == 'X' && exename[2] == 'E' && exename[3] == '\\') {
-			size_t offset = 4;
-			size_t i, len = strlen(exename) - offset;
-			for (i = 0; i < len; i++)
-				exename[i] = exename[i + offset];
-			exename[i] = '\0';
-		}
 	} else if (GetCdromFile(mdir, time, "PSX.EXE;1") != -1) {
 		strcpy(exename, "PSX.EXE;1");
 		strcpy(CdromId, "SLUS99999");
@@ -386,17 +376,25 @@ int CheckCdrom() {
 		strcpy(CdromId, "SLUS99999");
 
 	if (Config.PsxAuto) { // autodetect system (pal or ntsc)
-		if (CdromId[2] == 'e' || CdromId[2] == 'E')
+		if (
+			/* Make sure Wild Arms SCUS-94608 is not detected as a PAL game. */
+			((CdromId[0] == 's' || CdromId[0] == 'S') && (CdromId[2] == 'e' || CdromId[2] == 'E')) ||
+			!strncmp(CdromId, "DTLS3035", 8) ||
+			!strncmp(CdromId, "PBPX95001", 9) || // according to redump.org, these PAL
+			!strncmp(CdromId, "PBPX95007", 9) || // discs have a non-standard ID;
+			!strncmp(CdromId, "PBPX95008", 9))   // add more serials if they are discovered.
 			Config.PsxType = PSX_TYPE_PAL; // pal
 		else Config.PsxType = PSX_TYPE_NTSC; // ntsc
 	}
 
 	if (CdromLabel[0] == ' ') {
-		memcpy(CdromLabel, CdromId, 9);
+		strncpy(CdromLabel, CdromId, 9);
 	}
 	SysPrintf(_("CD-ROM Label: %.32s\n"), CdromLabel);
 	SysPrintf(_("CD-ROM ID: %.9s\n"), CdromId);
 	SysPrintf(_("CD-ROM EXE Name: %.255s\n"), exename);
+	
+	Apply_Hacks_Cdrom();
 
 	BuildPPFCache();
 
@@ -434,7 +432,7 @@ size_t fread_to_ram(void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
 	void *tmp;
 	size_t ret = 0;
-
+	
 	tmp = malloc(size * nmemb);
 	if (tmp) {
 		ret = fread(tmp, size, nmemb, stream);
@@ -453,8 +451,8 @@ int Load(const char *ExePath) {
 	u32 section_address, section_size;
 	void *mem;
 
-	strcpy(CdromId, "SLUS99999");
-	strcpy(CdromLabel, "SLUS_999.99");
+	strncpy(CdromId, "SLUS99999", 9);
+	strncpy(CdromLabel, "SLUS_999.99", 11);
 
 	tmpFile = fopen(ExePath, "rb");
 	if (tmpFile == NULL) {
@@ -469,14 +467,14 @@ int Load(const char *ExePath) {
 				section_size = SWAP32(tmpHead.t_size);
 				mem = PSXM(section_address);
 				if (mem != NULL) {
-					fseek(tmpFile, 0x800, SEEK_SET);
+					fseek(tmpFile, 0x800, SEEK_SET);		
 					fread_to_ram(mem, section_size, 1, tmpFile);
 					psxCpu->Clear(section_address, section_size / 4);
 				}
 				fclose(tmpFile);
 				psxRegs.pc = SWAP32(tmpHead.pc0);
 				psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
-				psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr);
+				psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr); 
 				if (psxRegs.GPR.n.sp == 0)
 					psxRegs.GPR.n.sp = 0x801fff00;
 				retval = 0;
@@ -565,7 +563,7 @@ struct PcsxSaveFuncs SaveFuncs = {
 	zlib_open, zlib_read, zlib_write, zlib_seek, zlib_close
 };
 
-static const char PcsxHeader[32] = "STv4 PCSX v" PCSX_VERSION;
+static const char PcsxHeader[32] = "STv4 PCSX v" PACKAGE_VERSION;
 
 // Savestate Versioning!
 // If you make changes to the savestate version, please increment the value below.
@@ -599,7 +597,8 @@ int SaveState(const char *file) {
 	SaveFuncs.write(f, psxM, 0x00200000);
 	SaveFuncs.write(f, psxR, 0x00080000);
 	SaveFuncs.write(f, psxH, 0x00010000);
-	SaveFuncs.write(f, (void *)&psxRegs, sizeof(psxRegs));
+	// only partial save of psxRegisters to maintain savestate compat
+	SaveFuncs.write(f, &psxRegs, offsetof(psxRegisters, gteBusyCycle));
 
 	// gpu
 	gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t));
@@ -657,18 +656,14 @@ int LoadState(const char *file) {
 	if (Config.HLE)
 		psxBiosInit();
 
-#if defined(LIGHTREC)
-	if (Config.Cpu != CPU_INTERPRETER)
-		psxCpu->Clear(0, UINT32_MAX); //clear all
-	else
-#endif
 	psxCpu->Reset();
 	SaveFuncs.seek(f, 128 * 96 * 3, SEEK_CUR);
 
 	SaveFuncs.read(f, psxM, 0x00200000);
 	SaveFuncs.read(f, psxR, 0x00080000);
 	SaveFuncs.read(f, psxH, 0x00010000);
-	SaveFuncs.read(f, (void *)&psxRegs, sizeof(psxRegs));
+	SaveFuncs.read(f, &psxRegs, offsetof(psxRegisters, gteBusyCycle));
+	psxRegs.gteBusyCycle = psxRegs.cycle;
 
 	if (Config.HLE)
 		psxBiosFreeze(0);
@@ -679,7 +674,7 @@ int LoadState(const char *file) {
 	GPU_freeze(0, gpufP);
 	free(gpufP);
 	if (HW_GPU_STATUS == 0)
-		HW_GPU_STATUS = GPU_readStatus();
+		HW_GPU_STATUS = SWAP32(GPU_readStatus());
 
 	// spu
 	SaveFuncs.read(f, &Size, 4);
@@ -755,7 +750,7 @@ int RecvPcsxInfo() {
 	NET_recvData(&Config.Cpu, sizeof(Config.Cpu), PSE_NET_BLOCKING);
 	if (tmp != Config.Cpu) {
 		psxCpu->Shutdown();
-#if defined(NEW_DYNAREC) || defined(LIGHTREC)
+#ifndef DRC_DISABLE
 		if (Config.Cpu == CPU_INTERPRETER) psxCpu = &psxInt;
 		else psxCpu = &psxRec;
 #else

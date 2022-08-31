@@ -166,22 +166,20 @@ static void alsa_finish(void)
   }
 }
 
-static float alsa_capacity(void) {
- int l;
-
- if (handle == NULL) return 0;
- if (buffer_size == 0) return 0;
-
- l = snd_pcm_avail(handle);
- if (l < 0) return 0;
-
- return (float)l / buffer_size;
-}
-
 // GET BYTES BUFFERED
 static int alsa_busy(void)
 {
- return alsa_capacity() < 0.5;
+ int l;
+
+ if (handle == NULL)                                 // failed to open?
+  return 1;
+ l = snd_pcm_avail(handle);
+ if (l < 0) return 0;
+ if (l < buffer_size / 2)                            // can we write in at least the half of fragments?
+      l = 1;                                         // -> no? wait
+ else l = 0;                                         // -> else go on
+
+ return l;
 }
 
 // FEED SOUND DATA
@@ -221,5 +219,4 @@ void out_register_alsa(struct out_driver *drv)
 	drv->finish = alsa_finish;
 	drv->busy = alsa_busy;
 	drv->feed = alsa_feed;
-  drv->capacity = alsa_capacity;
 }

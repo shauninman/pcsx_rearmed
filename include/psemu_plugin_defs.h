@@ -5,6 +5,10 @@
 extern "C" {
 #endif
 
+// this can't be __stdcall like it was in PSEmu API as too many functions are mixed up
+#undef CALLBACK
+#define CALLBACK
+
 // header version
 #define _PPDK_HEADER_VERSION		3
 
@@ -153,8 +157,6 @@ typedef struct
 
 
 
-// No controller
-#define PSE_PAD_TYPE_NONE			0
 // MOUSE SCPH-1030
 #define PSE_PAD_TYPE_MOUSE			1
 // NEGCON - 16 button analog controller SLPH-00001
@@ -193,14 +195,8 @@ typedef struct
 
 typedef struct
 {
-	// controller type - fill it withe predefined values above
+	// controler type - fill it withe predefined values above
 	unsigned char controllerType;
-
-	//0 : no multitap between psx and pad
-	//1 : multitap between psx and pad on port 1
-	//2 : multitap between psx and pad on port 2
-	int portMultitap;
-	int requestPadIndex;
 
 	// status of buttons - every controller fills this field
 	unsigned short buttonStatus;
@@ -215,13 +211,8 @@ typedef struct
 
 	unsigned char Vib[2];
 	unsigned char VibF[2];
-	
-	//configuration mode Request 0x43
-	int configMode;
+
 	unsigned char reserved[87];
-	
-	//Lightgun values 
-	int absoluteX,absoluteY;
 
 } PadDataS;
 

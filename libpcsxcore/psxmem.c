@@ -27,7 +27,8 @@
 #include "psxmem_map.h"
 #include "r3000a.h"
 #include "psxhw.h"
-#include "debug.h"
+//#include "debug.h"
+#define DebugCheckBP(...)
 
 #include "memmap.h"
 
@@ -42,16 +43,7 @@ void (*psxUnmapHook)(void *ptr, size_t size, enum psxMapTag tag);
 void *psxMap(unsigned long addr, size_t size, int is_fixed,
 		enum psxMapTag tag)
 {
-#ifdef LIGHTREC
-#ifdef MAP_FIXED_NOREPLACE
-	int flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE;
-#else
-	int flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED;
-#endif
-#else
 	int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-#endif
-
 	int try_ = 0;
 	unsigned long mask;
 	void *req, *ret;
@@ -144,36 +136,17 @@ int psxMemInit() {
 	memset(psxMemRLUT, 0, 0x10000 * sizeof(void *));
 	memset(psxMemWLUT, 0, 0x10000 * sizeof(void *));
 
-#ifdef LIGHTREC
-	psxM = psxMap(0x30000000, 0x00210000, 1, MAP_TAG_RAM);
-	if (psxM == NULL)
-		psxM = psxMap(0x70000000, 0x00210000, 1, MAP_TAG_RAM);
-
-#else
 	psxM = psxMap(0x80000000, 0x00210000, 1, MAP_TAG_RAM);
-#endif
-#ifndef RAM_FIXED
 	if (psxM == NULL)
 		psxM = psxMap(0x77000000, 0x00210000, 0, MAP_TAG_RAM);
-#endif
 	if (psxM == NULL) {
 		SysMessage(_("mapping main RAM failed"));
 		return -1;
 	}
 
 	psxP = &psxM[0x200000];
-#ifdef LIGHTREC
-	psxH = psxMap(0x4f800000, 0x10000, 0, MAP_TAG_OTHER);
-	if (psxH == NULL)
-		psxH = psxMap(0x8f800000, 0x10000, 0, MAP_TAG_OTHER);
-
-	psxR = psxMap(0x4fc00000, 0x80000, 0, MAP_TAG_OTHER);
-	if (psxR == NULL)
-		psxR = psxMap(0x8fc00000, 0x80000, 0, MAP_TAG_OTHER);
-#else
 	psxH = psxMap(0x1f800000, 0x10000, 0, MAP_TAG_OTHER);
 	psxR = psxMap(0x1fc00000, 0x80000, 0, MAP_TAG_OTHER);
-#endif
 
 	if (psxMemRLUT == NULL || psxMemWLUT == NULL || 
 	    psxR == NULL || psxP == NULL || psxH == NULL) {
@@ -202,7 +175,11 @@ int psxMemInit() {
 	memcpy(psxMemWLUT + 0x8000, psxMemWLUT, 0x80 * sizeof(void *));
 	memcpy(psxMemWLUT + 0xa000, psxMemWLUT, 0x80 * sizeof(void *));
 
-	psxMemWLUT[0x1f00] = (u8 *)psxP;
+	// Don't allow writes to PIO Expansion region (psxP) to take effect.
+	// NOTE: Not sure if this is needed to fix any games but seems wise,
+	//       seeing as some games do read from PIO as part of copy-protection
+	//       check. (See fix in psxMemReset() regarding psxP region reads).
+	psxMemWLUT[0x1f00] = NULL;
 	psxMemWLUT[0x1f80] = (u8 *)psxH;
 
 	return 0;
@@ -262,7 +239,7 @@ u8 psxMemRead8(u32 mem) {
 #ifdef PSXMEM_LOG
 			PSXMEM_LOG("err lb %8.8lx\n", mem);
 #endif
-			return 0;
+			return 0xFF;
 		}
 	}
 }
@@ -287,7 +264,7 @@ u16 psxMemRead16(u32 mem) {
 #ifdef PSXMEM_LOG
 			PSXMEM_LOG("err lh %8.8lx\n", mem);
 #endif
-			return 0;
+			return 0xFFFF;
 		}
 	}
 }
@@ -312,7 +289,7 @@ u32 psxMemRead32(u32 mem) {
 #ifdef PSXMEM_LOG
 			if (writeok) { PSXMEM_LOG("err lw %8.8lx\n", mem); }
 #endif
-			return 0;
+			return 0xFFFFFFFF;
 		}
 	}
 }
@@ -333,7 +310,7 @@ void psxMemWrite8(u32 mem, u8 value) {
 			if (Config.Debug)
 				DebugCheckBP((mem & 0xffffff) | 0x80000000, W1);
 			*(u8 *)(p + (mem & 0xffff)) = value;
-#ifdef PSXREC
+#ifndef DRC_DISABLE
 			psxCpu->Clear((mem & (~3)), 1);
 #endif
 		} else {
@@ -360,7 +337,7 @@ void psxMemWrite16(u32 mem, u16 value) {
 			if (Config.Debug)
 				DebugCheckBP((mem & 0xffffff) | 0x80000000, W2);
 			*(u16 *)(p + (mem & 0xffff)) = SWAPu16(value);
-#ifdef PSXREC
+#ifndef DRC_DISABLE
 			psxCpu->Clear((mem & (~3)), 1);
 #endif
 		} else {
@@ -388,12 +365,12 @@ void psxMemWrite32(u32 mem, u32 value) {
 			if (Config.Debug)
 				DebugCheckBP((mem & 0xffffff) | 0x80000000, W4);
 			*(u32 *)(p + (mem & 0xffff)) = SWAPu32(value);
-#ifdef PSXREC
+#ifndef DRC_DISABLE
 			psxCpu->Clear(mem, 1);
 #endif
 		} else {
 			if (mem != 0xfffe0130) {
-#ifdef PSXREC
+#ifndef DRC_DISABLE
 				if (!writeok)
 					psxCpu->Clear(mem, 1);
 #endif
@@ -411,6 +388,8 @@ void psxMemWrite32(u32 mem, u32 value) {
 						memset(psxMemWLUT + 0x0000, 0, 0x80 * sizeof(void *));
 						memset(psxMemWLUT + 0x8000, 0, 0x80 * sizeof(void *));
 						memset(psxMemWLUT + 0xa000, 0, 0x80 * sizeof(void *));
+						/* Required for icache interpreter otherwise Armored Core won't boot on icache interpreter */
+						psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_ISOLATED, NULL);
 						break;
 					case 0x00: case 0x1e988:
 						if (writeok == 1) break;
@@ -418,6 +397,8 @@ void psxMemWrite32(u32 mem, u32 value) {
 						for (i = 0; i < 0x80; i++) psxMemWLUT[i + 0x0000] = (void *)&psxM[(i & 0x1f) << 16];
 						memcpy(psxMemWLUT + 0x8000, psxMemWLUT, 0x80 * sizeof(void *));
 						memcpy(psxMemWLUT + 0xa000, psxMemWLUT, 0x80 * sizeof(void *));
+						/* Dynarecs might take this opportunity to flush their code cache */
+						psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_UNISOLATED, NULL);
 						break;
 					default:
 #ifdef PSXMEM_LOG

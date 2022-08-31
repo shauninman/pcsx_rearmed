@@ -33,20 +33,14 @@
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../libpcsxcore/psxmem_map.h"
 #include "../plugins/dfinput/externals.h"
-#include "../plugins/dfsound/out.h"
-
 
 #define HUD_HEIGHT 10
 
-int in_type[8];
-int multitap1;
-int multitap2;
-int in_analog_left[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 }};
-int in_analog_right[8][2] = {{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 },{ 127, 127 }};
+int in_type1, in_type2;
+int in_a1[2] = { 127, 127 }, in_a2[2] = { 127, 127 };
 int in_adev[2] = { -1, -1 }, in_adev_axis[2][2] = {{ 0, 1 }, { 0, 1 }};
 int in_adev_is_nublike[2];
-unsigned short in_keystate[8];
-int in_state_gun;
+int in_keystate, in_state_gun;
 int in_enable_vibration;
 void *tsdev;
 void *pl_vout_buf;
@@ -402,6 +396,8 @@ static void pl_vout_flip(const void *vram, int stride, int bgr24, int w, int h)
 #endif
 	else
 	{
+		src = (void *)((uintptr_t)src & ~3); // align for the blitter
+
 		for (; h1-- > 0; dest += dstride * 2, src += stride)
 		{
 			bgr555_to_rgb565(dest, src, w * 2);
@@ -472,7 +468,7 @@ static int dispmode_default(void)
 	return 1;
 }
 
-#ifdef __ARM_NEON__
+#ifdef BUILTIN_GPU_NEON
 static int dispmode_doubleres(void)
 {
 	if (!(pl_rearmed_cbs.gpu_caps & GPU_CAP_SUPPORTS_2X)
@@ -484,7 +480,9 @@ static int dispmode_doubleres(void)
 	snprintf(hud_msg, sizeof(hud_msg), "double resolution");
 	return 1;
 }
+#endif
 
+#ifdef __ARM_NEON__
 static int dispmode_scale2x(void)
 {
 	if (!resolution_ok(psx_w * 2, psx_h * 2) || psx_bpp != 16)
@@ -510,8 +508,10 @@ static int dispmode_eagle2x(void)
 
 static int (*dispmode_switchers[])(void) = {
 	dispmode_default,
-#ifdef __ARM_NEON__
+#ifdef BUILTIN_GPU_NEON
 	dispmode_doubleres,
+#endif
+#ifdef __ARM_NEON__
 	dispmode_scale2x,
 	dispmode_eagle2x,
 #endif
@@ -566,7 +566,7 @@ static void update_analog_nub_adjust(int *x_, int *y_)
 
 static void update_analogs(void)
 {
-	int *nubp[2] = { in_analog_left[0], in_analog_right[0] };
+	int *nubp[2] = { in_a1, in_a2 };
 	int vals[2];
 	int i, a, v, ret;
 
@@ -601,10 +601,9 @@ static void update_input(void)
 {
 	int actions[IN_BINDTYPE_COUNT] = { 0, };
 	unsigned int emu_act;
-	int keystate;
 
 	in_update(actions);
-	if (in_type[0] == PSE_PAD_TYPE_ANALOGJOY || in_type[0] == PSE_PAD_TYPE_ANALOGPAD)
+	if (in_type1 == PSE_PAD_TYPE_ANALOGPAD)
 		update_analogs();
 	emu_act = actions[IN_BINDTYPE_EMU];
 	in_state_gun = (emu_act & SACTION_GUN_MASK) >> SACTION_GUN_TRIGGER;
@@ -616,31 +615,9 @@ static void update_input(void)
 			;
 		emu_act = which;
 	}
-
-	keystate = actions[IN_BINDTYPE_PLAYER12];
-#ifdef MENU_SHOULDER_COMBO
-	if (emu_act == SACTION_ENTER_MENU) {
-		if (keystate)
-			emu_menu_cancel = 1;
-
-		if (keystate & (1 << DKEY_L1)) {
-			keystate ^= (1 << DKEY_L1);
-			keystate |= (1 << DKEY_L2);
-		} else if (keystate & (1 << DKEY_L2)) {
-			keystate ^= (1 << DKEY_L2);
-			keystate |= (1 << DKEY_L1);
-		} else if (keystate & (1 << DKEY_R1)) {
-			keystate ^= (1 << DKEY_R1);
-			keystate |= (1 << DKEY_R2);
-		} else if (keystate & (1 << DKEY_R2)) {
-			keystate ^= (1 << DKEY_R2);
-			keystate |= (1 << DKEY_R1);
-		}
-	}
-#endif
 	emu_set_action(emu_act);
 
-	in_keystate[0] = keystate;
+	in_keystate = actions[IN_BINDTYPE_PLAYER12];
 }
 #else /* MAEMO */
 extern void update_input(void);
@@ -699,6 +676,7 @@ void pl_frame_limit(void)
 				hud_msg[0] = 0;
 		}
 		tv_old = now;
+		//new_dynarec_print_stats();
 	}
 #ifdef PCNT
 	static int ya_vsync_count;
@@ -727,34 +705,17 @@ void pl_frame_limit(void)
 		tv_expect.tv_usec = usadj << 10;
 	}
 
-	if (!(g_opts & OPT_NO_FRAMELIM)) {
-		if (pl_rearmed_cbs.frameskip && pl_rearmed_cbs.frameskip_type == 1) {
-			while (out_current && out_current->capacity() < 0.1) {
-				usleep(500);
-			}
-		} else {
-			if (diff > frame_interval) {
-				// yay for working usleep on pandora!
-				//printf("usleep %d\n", diff - frame_interval / 2);
-				usleep(diff - frame_interval);
-			}
-		}
+	if (!(g_opts & OPT_NO_FRAMELIM) && diff > frame_interval) {
+		// yay for working usleep on pandora!
+		//printf("usleep %d\n", diff - frame_interval / 2);
+		usleep(diff - frame_interval);
 	}
-	
 
 	if (pl_rearmed_cbs.frameskip) {
-		if (pl_rearmed_cbs.frameskip_type == 1) {
-			if (out_current->capacity() > 0.5) {
-				pl_rearmed_cbs.fskip_advice = 1;
-			} else {
-				pl_rearmed_cbs.fskip_advice = 0;
-			}
-		} else {
-			if (diff < -frame_interval)
-				pl_rearmed_cbs.fskip_advice = 1;
-			else if (diff >= 0)
-				pl_rearmed_cbs.fskip_advice = 0;
-		}
+		if (diff < -frame_interval)
+			pl_rearmed_cbs.fskip_advice = 1;
+		else if (diff >= 0)
+			pl_rearmed_cbs.fskip_advice = 0;
 
 		// recompilation is not that fast and may cause frame skip on
 		// loading screens and such, resulting in flicker or glitches

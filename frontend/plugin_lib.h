@@ -1,9 +1,3 @@
-#ifndef __PLUGIN_LIB_H__
-#define __PLUGIN_LIB_H__
-
-#define THREAD_RENDERING_OFF   0
-#define THREAD_RENDERING_SYNC  1
-#define THREAD_RENDERING_ASYNC 2
 
 enum {
 	DKEY_SELECT = 0,
@@ -23,15 +17,8 @@ enum {
 	DKEY_CROSS,
 	DKEY_SQUARE,
 };
-extern int in_state_gun;
-extern int in_type[8];
-extern int multitap1;
-extern int multitap2;
-extern int in_analog_left[8][2];
-extern int in_analog_right[8][2];
-extern unsigned short in_keystate[8];
-extern int in_mouse[8][2];
-
+extern int in_type1, in_type2;
+extern int in_keystate, in_state_gun, in_a1[2], in_a2[2];
 extern int in_adev[2], in_adev_axis[2][2];
 extern int in_adev_is_nublike[2];
 extern int in_enable_vibration;
@@ -69,18 +56,15 @@ struct rearmed_cbs {
 	void *gles_display, *gles_surface;
 	// gpu options
 	int   frameskip;
-	int   frameskip_type;
 	int   fskip_advice;
 	unsigned int *gpu_frame_count;
 	unsigned int *gpu_hcnt;
 	unsigned int flip_cnt; // increment manually if not using pl_vout_flip
 	unsigned int only_16bpp; // platform is 16bpp-only
-	unsigned int thread_rendering;
 	struct {
 		int   allow_interlace; // 0 off, 1 on, 2 guess
 		int   enhancement_enable;
 		int   enhancement_no_main;
-		int   allow_dithering;
 	} gpu_neon;
 	struct {
 		int   iUseDither;
@@ -89,18 +73,19 @@ struct rearmed_cbs {
 		int   dwFrameRateTicks;
 	} gpu_peops;
 	struct {
+		int   abe_hack;
+		int   no_light, no_blend;
+		int   lineskip;
+	} gpu_unai;
+	struct {
 		int ilace_force;
 		int pixel_skip;
 		int lighting;
 		int fast_lighting;
 		int blending;
 		int dithering;
-		// old gpu_unai config for compatibility
-		int   abe_hack;
-		int   no_light, no_blend;
-		int   lineskip;
-		int   scale_hires;
-	} gpu_unai;
+		int scale_hires;
+	} gpu_senquack;
 	struct {
 		int   dwActFixes;
 		int   bDrawDither, iFilterType, iFrameTexType;
@@ -127,5 +112,3 @@ extern void (*pl_plat_hud_print)(int x, int y, const char *str, int bpp);
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #endif
-
-#endif /* __PLUGIN_LIB_H__ */

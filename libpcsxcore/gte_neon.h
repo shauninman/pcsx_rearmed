@@ -15,9 +15,6 @@
  *  along with this program; if not, see <http://www.gnu.org/licenses>.
  */
 
-#ifndef __GTE_NEON_H__
-#define __GTE_NEON_H__
-
 void gteRTPS_neon(void *cp2_regs, int opcode);
 void gteRTPT_neon(void *cp2_regs, int opcode);
 
@@ -26,5 +23,3 @@ void gteMVMVA_part_neon(void *cp2_regs, int opcode);
 
 // after NEON call only, does not do gteIR
 void gteMACtoIR_flags_neon(void *cp2_regs, int lm);
-
-#endif /* __GTE_NEON_H__ */

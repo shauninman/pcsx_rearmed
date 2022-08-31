@@ -15,11 +15,6 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef __P_XA_H__
-#define __P_XA_H__
-
 INLINE void MixXA(void);
 INLINE void FeedXA(xa_decode_t *xap);
 INLINE int  FeedCDDA(unsigned char *pcm, int nBytes);
-
-#endif /* __P_XA_H__ */

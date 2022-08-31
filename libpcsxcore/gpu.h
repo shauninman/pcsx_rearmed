@@ -21,9 +21,6 @@
  *    that GPU plugin doesn't.
  */
 
-#ifndef __GPU_H__
-#define __GPU_H__
-
 #define PSXGPU_LCF     (1<<31)
 #define PSXGPU_nBUSY   (1<<26)
 #define PSXGPU_ILACE   (1<<22)
@@ -38,8 +35,6 @@
 #define PSXGPU_TIMING_BITS (PSXGPU_LCF | PSXGPU_nBUSY)
 
 #define gpuSyncPluginSR() { \
-	HW_GPU_STATUS &= PSXGPU_TIMING_BITS; \
-	HW_GPU_STATUS |= GPU_readStatus() & ~PSXGPU_TIMING_BITS; \
+	HW_GPU_STATUS &= SWAP32(PSXGPU_TIMING_BITS); \
+	HW_GPU_STATUS |= SWAP32(GPU_readStatus() & ~PSXGPU_TIMING_BITS); \
 }
-
-#endif /* __GPU_H__ */

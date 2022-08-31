@@ -15,9 +15,4 @@
  *  along with this program; if not, see <http://www.gnu.org/licenses>.
  */
 
-#ifndef __GTE_DIVIDER_H__
-#define __GTE_DIVIDER_H__
-
-u32 DIVIDE(s16 n, u16 d);
-
-#endif /* __GTE_DIVIDER_H__ */
+u32 DIVIDE(u16 n, u16 d);

@@ -288,32 +288,34 @@ static void pulse_finish(void)
 }
 
 ////////////////////////////////////////////////////////////////////////
-// GET BUFFER AVAILABLE
-////////////////////////////////////////////////////////////////////////
-
-static float pulse_capacity(void)
-{
-     int free_space;
-
-     if ((device.mainloop == NULL) || (device.api == NULL) || ( device.context == NULL) || (device.stream == NULL))
-     	  return 0;
-
-     pa_threaded_mainloop_lock (device.mainloop);
-     free_space = pa_stream_writable_size (device.stream);
-     pa_threaded_mainloop_unlock (device.mainloop);
-     if (free_space == 0) return 0;
-
-     return (float)free_space / mixlen;
-}
-
-
-////////////////////////////////////////////////////////////////////////
 // GET BYTES BUFFERED
 ////////////////////////////////////////////////////////////////////////
 
 static int pulse_busy(void)
 {
-     return pulse_capacity() < 0.33;
+     int free_space;
+
+     if ((device.mainloop == NULL) || (device.api == NULL) || ( device.context == NULL) || (device.stream == NULL))
+     	  return 1;
+
+     pa_threaded_mainloop_lock (device.mainloop);
+     free_space = pa_stream_writable_size (device.stream);
+     pa_threaded_mainloop_unlock (device.mainloop);
+
+     //fprintf (stderr, "Free space: %d\n", free_space);
+     //fprintf (stderr, "Used space: %d\n", maxlength - free_space);
+     if  (free_space < mixlen * 3)
+     {
+	  // Don't buffer anymore, just play
+	  //fprintf (stderr, "Not buffering.\n");
+     	  return 1;
+     }
+     else 
+     {
+	  // Buffer some sound
+	  //fprintf (stderr, "Buffering.\n");
+     	  return 0;
+     }
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -344,5 +346,4 @@ void out_register_pulse(struct out_driver *drv)
 	drv->finish = pulse_finish;
 	drv->busy = pulse_busy;
 	drv->feed = pulse_feed;
-  drv->capacity = pulse_capacity;
 }

@@ -37,20 +37,20 @@ check_define_val()
 # setting options to "yes" or "no" will make that choice default,
 # "" means "autodetect".
 
-platform_list="generic pandora maemo caanoo libretro trimui"
+platform_list="generic pandora maemo caanoo libretro"
 platform="generic"
-builtin_gpu_list="peops unai neon"
+builtin_gpu_list="peops unai neon senquack"
 builtin_gpu=""
 sound_driver_list="oss alsa pulseaudio sdl libretro"
 sound_drivers=""
 plugins="plugins/spunull/spunull.so \
-plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so"
-ram_fixed="no"
+plugins/dfxvideo/gpu_peops.so plugins/gpu_unai/gpu_unai.so plugins/gpu_senquack/gpu_senquack.so"
 drc_cache_base="no"
 have_armv5=""
 have_armv6=""
 have_armv7=""
 have_arm_neon=""
+have_arm_neon_asm=""
 have_tslib=""
 have_gles=""
 have_c64x_dsp=""
@@ -73,9 +73,13 @@ AR="${AS-${CROSS_COMPILE}ar}"
 MAIN_LDLIBS="$LDLIBS -ldl -lm -lpthread"
 config_mak="config.mak"
 
+SYSROOT="$(${CC} --print-sysroot)"
+[ "x${SDL_CONFIG}" = "x" ] && SDL_CONFIG="${SYSROOT}/usr/bin/sdl-config"
+
 fail()
 {
   echo "$@"
+  if test -n "$DUMP_CONFIG_LOG"; then cat config.log; fi
   exit 1
 }
 
@@ -88,36 +92,21 @@ set_platform()
     ;;
   pandora)
     sound_drivers="oss alsa"
-    ram_fixed="yes"
     drc_cache_base="yes"
     optimize_cortexa8="yes"
     have_arm_neon="yes"
     need_xlib="yes"
     ;;
   maemo)
-    ram_fixed="yes"
     drc_cache_base="yes"
     optimize_cortexa8="yes"
     have_arm_neon="yes"
     ;;
   caanoo)
     sound_drivers="oss"
-    ram_fixed="yes"
     drc_cache_base="yes"
     optimize_arm926ej="yes"
     need_warm="yes"
-    ;;
-  trimui)
-    ARCH="arm"
-    sound_drivers="sdl"
-    have_tslib="no"
-    have_chd="yes"
-    ram_fixed="yes"
-    drc_cache_base="no" # usually works, sometimes not
-    optimize_arm926ej="yes"
-    need_warm="no"
-    have_arm_neon="no"
-    plugins=""
     ;;
   libretro)
     sound_drivers="libretro"
@@ -164,6 +153,7 @@ if [ "$show_help" = "yes" ]; then
   echo "  --disable-neon           enable/disable ARM NEON optimizations [guessed]"
   echo "  --disable-dynarec        disable dynamic recompiler"
   echo "                           (dynarec is only available and enabled on ARM)"
+  echo "  --disable-icache-emu     Disables the instruction cache emulation"
   echo "influential environment variables:"
   echo "  CROSS_COMPILE CC CXX AS AR CFLAGS ASFLAGS LDFLAGS LDLIBS"
   exit 1
@@ -224,7 +214,7 @@ arm*)
   fi
 
   if [ "x$have_arm_neon" = "x" ]; then
-    # detect NEON from user-supplied cflags to enable asm code
+    # detect NEON from user-supplied cflags to enable neon code
     have_arm_neon=`check_define __ARM_NEON__ && echo yes` || true
   fi
   if [ "x$have_armv7" = "x" ]; then
@@ -289,8 +279,18 @@ arm*)
     echo "You probably want to specify -mcpu= or -march= like this:"
     echo "  CFLAGS=-march=armv7-a ./configure ..."
   fi
+  have_arm_neon_asm=$have_arm_neon
+  ;;
+aarch64)
+  have_arm_neon="yes"
+  have_arm_neon_asm="no"
+  if [ "x$builtin_gpu" = "x" ]; then
+    builtin_gpu="neon"
+  fi
   ;;
 *)
+  # dynarec only available on ARM
+  enable_dynarec="no"
   ;;
 esac
 
@@ -301,10 +301,6 @@ fi
 # supposedly we can avoid -fPIC on armv5 for slightly better performace?
 if [ "$ARCH" != "arm" -o "$have_armv6" = "yes" ]; then
   PLUGIN_CFLAGS="$PLUGIN_CFLAGS -fPIC"
-fi
-
-if [ "$ram_fixed" = "yes" ]; then
-  CFLAGS="$CFLAGS -DRAM_FIXED"
 fi
 
 case "$platform" in
@@ -412,7 +408,7 @@ if [ "x$sound_drivers" = "x" ]; then
     sound_drivers="$sound_drivers pulseaudio"
     MAIN_LDLIBS="-lpulse $MAIN_LDLIBS"
   fi
-  if [ "$need_sdl" = "yes" ] || check_sdl `sdl-config --cflags --libs`; then
+  if [ "$need_sdl" = "yes" ] || check_sdl `${SDL_CONFIG} --cflags --libs`; then
     sound_drivers="$sound_drivers sdl"
     need_sdl="yes"
   fi
@@ -431,10 +427,10 @@ else
 fi
 
 if [ "$need_sdl" = "yes" ]; then
-  which sdl-config > /dev/null || \
+  which ${SDL_CONFIG} > /dev/null || \
     fail "sdl-config is missing; please install libsdl (libsdl1.2-dev)"
-  CFLAGS="$CFLAGS `sdl-config --cflags`"
-  MAIN_LDLIBS="`sdl-config --libs` $MAIN_LDLIBS"
+  CFLAGS="$CFLAGS `${SDL_CONFIG} --cflags`"
+  MAIN_LDLIBS="`${SDL_CONFIG} --libs` $MAIN_LDLIBS"
   check_sdl || fail "please install libsdl (libsdl1.2-dev)"
 fi
 
@@ -519,6 +515,7 @@ done
 test "x$have_armv6" != "x" || have_armv6="no"
 test "x$have_armv7" != "x" || have_armv7="no"
 test "x$have_arm_neon" != "x" || have_arm_neon="no"
+test "x$have_arm_neon_asm" != "x" || have_arm_neon_asm="no"
 test "x$have_gles" != "x" || have_gles="no"
 test "x$have_c64x_dsp" != "x" || have_c64x_dsp="no"
 
@@ -532,9 +529,11 @@ echo "C compiler flags    $CFLAGS"
 echo "libraries           $MAIN_LDLIBS"
 echo "linker flags        $LDFLAGS$MAIN_LDFLAGS"
 echo "enable dynarec      $enable_dynarec"
+if [ "$ARCH" = "arm" -o "$ARCH" = "aarch64" ]; then
+  echo "enable ARM NEON     $have_arm_neon"
+fi
 if [ "$ARCH" = "arm" ]; then
   echo "ARMv7 optimizations $have_armv7"
-  echo "enable ARM NEON     $have_arm_neon"
   echo "TI C64x DSP support $have_c64x_dsp"
 fi
 echo "tslib support       $have_tslib"
@@ -560,17 +559,17 @@ echo >> $config_mak
 
 if [ "$platform" = "libretro" ]; then
   echo "TARGET = libretro.so" >> $config_mak
-  echo "HAVE_CHD = 1" >> $config_mak
 fi
 echo "ARCH = $ARCH" >> $config_mak
 echo "PLATFORM = $platform" >> $config_mak
 echo "BUILTIN_GPU = $builtin_gpu" >> $config_mak
 echo "SOUND_DRIVERS = $sound_drivers" >> $config_mak
-if [ "$platform" != "libretro" ]; then
-  echo "PLUGINS = $plugins" >> $config_mak
-fi
+echo "PLUGINS = $plugins" >> $config_mak
 if [ "$have_arm_neon" = "yes" ]; then
   echo "HAVE_NEON = 1" >> $config_mak
+fi
+if [ "$have_arm_neon_asm" = "yes" ]; then
+  echo "HAVE_NEON_ASM = 1" >> $config_mak
 fi
 if [ "$have_tslib" = "yes" ]; then
   echo "HAVE_TSLIB = 1" >> $config_mak
@@ -581,19 +580,16 @@ if [ "$have_gles" = "yes" ]; then
   echo "LDLIBS_GLES = $LDLIBS_GLES" >> $config_mak
 fi
 if [ "$enable_dynarec" = "yes" ]; then
-  echo "DYNAREC = ari64" >> $config_mak
+  echo "USE_DYNAREC = 1" >> $config_mak
 fi
 if [ "$drc_cache_base" = "yes" ]; then
-  echo "DRC_CACHE_BASE = 1" >> $config_mak
+  echo "BASE_ADDR_DYNAMIC = 1" >> $config_mak
 fi
 if [ "$have_c64x_dsp" = "yes" ]; then
   echo "HAVE_C64_TOOLS = 1" >> $config_mak
 fi
-if [ "$have_chd" = "yes" ]; then
-  echo "HAVE_CHD = 1" >> $config_mak
-fi
 
 # use pandora's skin (for now)
-# test -e skin || ln -s frontend/pandora/skin skin
+test -e skin || ln -s frontend/pandora/skin skin
 
 # vim:shiftwidth=2:expandtab

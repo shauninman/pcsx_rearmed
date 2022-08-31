@@ -5,7 +5,6 @@
  * See the COPYING file in the top-level directory.
  */
 
-#include "arm_features.h"
 
 .text
 .align 2

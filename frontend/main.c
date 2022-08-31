@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <time.h>
-#if !defined(_WIN32) && !defined(NO_DYLIB)
+#ifndef _WIN32
 #include <dlfcn.h>
 #endif
 
@@ -43,8 +43,8 @@ static void check_memcards(void);
 #endif
 
 // don't include debug.h - it breaks ARM build (R1 redefined)
-void StartDebugger();
-void StopDebugger();
+static void StartDebugger() {}
+static void StopDebugger() {}
 
 int ready_to_go, g_emu_want_quit, g_emu_resetting;
 unsigned long gpuDisp;
@@ -54,15 +54,12 @@ enum sched_action emu_action, emu_action_old;
 char hud_msg[64];
 int hud_new_msg;
 
-void make_path(char *buf, size_t size, const char *dir, const char *fname)
+static void make_path(char *buf, size_t size, const char *dir, const char *fname)
 {
-	char root_dir[MAXPATHLEN];
-	plat_get_root_dir(root_dir, MAXPATHLEN);
-
 	if (fname)
-		snprintf(buf, size, "%s%s%s", root_dir, dir, fname);
+		snprintf(buf, size, ".%s%s", dir, fname);
 	else
-		snprintf(buf, size, "%s%s", root_dir, dir);
+		snprintf(buf, size, ".%s", dir);
 }
 #define MAKE_PATH(buf, dir, fname) \
 	make_path(buf, sizeof(buf), dir, fname)
@@ -106,7 +103,7 @@ void set_cd_image(const char *fname)
 static void set_default_paths(void)
 {
 #ifndef NO_FRONTEND
-	MAKE_PATH(Config.PatchesDir, PATCHES_DIR, NULL);
+	snprintf(Config.PatchesDir, sizeof(Config.PatchesDir), "." PATCHES_DIR);
 	MAKE_PATH(Config.Mcd1, MEMCARD_DIR, "card1.mcd");
 	MAKE_PATH(Config.Mcd2, MEMCARD_DIR, "card2.mcd");
 	strcpy(Config.BiosDir, "bios");
@@ -125,40 +122,34 @@ void emu_set_default_config(void)
 {
 	// try to set sane config on which most games work
 	Config.Xa = Config.Cdda = Config.Sio =
-	Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
+	Config.icache_emulation = Config.SpuIrq = Config.RCntFix = Config.VSyncWA = 0;
 	Config.PsxAuto = 1;
-
-	pl_rearmed_cbs.frameskip_type = 0;
-	pl_rearmed_cbs.thread_rendering = 0;
 
 	pl_rearmed_cbs.gpu_neon.allow_interlace = 2; // auto
 	pl_rearmed_cbs.gpu_neon.enhancement_enable =
 	pl_rearmed_cbs.gpu_neon.enhancement_no_main = 0;
 	pl_rearmed_cbs.gpu_peops.iUseDither = 0;
 	pl_rearmed_cbs.gpu_peops.dwActFixes = 1<<7;
-	pl_rearmed_cbs.gpu_unai.ilace_force = 0;
-	pl_rearmed_cbs.gpu_unai.pixel_skip = 0;
-	pl_rearmed_cbs.gpu_unai.lighting = 1;
-	pl_rearmed_cbs.gpu_unai.fast_lighting = 1;
-	pl_rearmed_cbs.gpu_unai.blending = 1;
-	pl_rearmed_cbs.gpu_unai.dithering = 0;
-	// old gpu_unai config
+	pl_rearmed_cbs.gpu_senquack.ilace_force = 0;
+	pl_rearmed_cbs.gpu_senquack.pixel_skip = 0;
+	pl_rearmed_cbs.gpu_senquack.lighting = 1;
+	pl_rearmed_cbs.gpu_senquack.fast_lighting = 0;
+	pl_rearmed_cbs.gpu_senquack.blending = 1;
+	pl_rearmed_cbs.gpu_senquack.dithering = 0;
 	pl_rearmed_cbs.gpu_unai.abe_hack =
 	pl_rearmed_cbs.gpu_unai.no_light =
 	pl_rearmed_cbs.gpu_unai.no_blend = 0;
-	pl_rearmed_cbs.gpu_unai.scale_hires = 0;
 	memset(&pl_rearmed_cbs.gpu_peopsgl, 0, sizeof(pl_rearmed_cbs.gpu_peopsgl));
 	pl_rearmed_cbs.gpu_peopsgl.iVRamSize = 64;
 	pl_rearmed_cbs.gpu_peopsgl.iTexGarbageCollection = 1;
 
 	spu_config.iUseReverb = 1;
-	spu_config.idiablofix = 0;
 	spu_config.iUseInterpolation = 1;
 	spu_config.iXAPitch = 0;
 	spu_config.iVolume = 768;
 	spu_config.iTempo = 0;
 	spu_config.iUseThread = 1; // no effect if only 1 core is detected
-#if defined(HAVE_PRE_ARMV7) && !defined(_3DS) /* XXX GPH hack */
+#ifdef HAVE_PRE_ARMV7 /* XXX GPH hack */
 	spu_config.iUseReverb = 0;
 	spu_config.iUseInterpolation = 0;
 	spu_config.iTempo = 1;
@@ -166,15 +157,8 @@ void emu_set_default_config(void)
 	new_dynarec_hacks = 0;
 	cycle_multiplier = 200;
 
-#ifdef TRIMUI
-	pl_rearmed_cbs.gpu_unai.scale_hires = 1;
-	pl_rearmed_cbs.frameskip_type = 1; // audio-based
-	spu_config.iTempo = 0;
-	cycle_multiplier = 175;
-#endif
-
-	in_type[0] = PSE_PAD_TYPE_STANDARD;
-	in_type[1] = PSE_PAD_TYPE_STANDARD;
+	in_type1 = PSE_PAD_TYPE_STANDARD;
+	in_type2 = PSE_PAD_TYPE_STANDARD;
 }
 
 void do_emu_action(void)
@@ -321,7 +305,7 @@ static int cdidcmp(const char *id1, const char *id2)
 
 static void parse_cwcheat(void)
 {
-	char line[256], buf[256], name[256], *p;
+	char line[256], buf[64], name[64], *p;
 	int newcheat = 1;
 	u32 a, v;
 	FILE *f;
@@ -488,13 +472,17 @@ static void create_profile_dir(const char *directory) {
 }
 
 static void check_profile(void) {
+	// make sure that ~/.pcsx exists
+	create_profile_dir(PCSX_DOT_DIR);
+
+	create_profile_dir(BIOS_DIR);
 	create_profile_dir(MEMCARD_DIR);
 	create_profile_dir(STATES_DIR);
 	create_profile_dir(PLUGINS_DIR);
 	create_profile_dir(PLUGINS_CFG_DIR);
 	create_profile_dir(CHEATS_DIR);
 	create_profile_dir(PATCHES_DIR);
-	create_profile_dir("/cfg/");
+	create_profile_dir(PCSX_DOT_DIR "cfg");
 	create_profile_dir("/screenshots/");
 }
 
@@ -608,7 +596,7 @@ int main(int argc, char *argv[])
 		// FIXME: this recovery doesn't work, just delete bad config and bail out
 		// SysMessage("could not load plugins, retrying with defaults\n");
 		set_default_paths();
-		MAKE_PATH(path, cfgfile_basename, NULL);
+		snprintf(path, sizeof(path), "." PCSX_DOT_DIR "%s", cfgfile_basename);
 		remove(path);
 		SysMessage("Failed loading plugins!");
 		return 1;
@@ -633,7 +621,6 @@ int main(int argc, char *argv[])
 				SysPrintf(_("Could not load CD-ROM!\n"));
 				return -1;
 			}
-			menu_load_config(1);
 			emu_on_new_cd(!loadst);
 			ready_to_go = 1;
 		}
@@ -725,7 +712,7 @@ void SysRunGui() {
         printf("SysRunGui\n");
 }
 
-static void dummy_lace()
+static void CALLBACK dummy_lace()
 {
 }
 
@@ -740,10 +727,10 @@ void SysReset() {
 	// reset can run code, timing must be set
 	pl_timing_prepare(Config.PsxType);
 
-   // hmh core forgets this
-	CDR_stop();
-   
 	EmuReset();
+
+	// hmh core forgets this
+	CDR_stop();
 
 	GPU_updateLace = real_lace;
 	g_emu_resetting = 0;
@@ -765,10 +752,8 @@ void SysUpdate() {
 }
 
 int get_state_filename(char *buf, int size, int i) {
-	char fname[MAXPATHLEN];
-	MAKE_PATH(fname, STATES_DIR, "%.32s-%.9s.%3.3d");
-
-	return get_gameid_filename(buf, size, fname, i);
+	return get_gameid_filename(buf, size,
+		"." STATES_DIR "%.32s-%.9s.%3.3d", i);
 }
 
 int emu_check_state(int slot)
@@ -793,7 +778,7 @@ int emu_save_state(int slot)
 		return ret;
 
 	ret = SaveState(fname);
-#if defined(HAVE_PRE_ARMV7) && !defined(_3DS) && !defined(__SWITCH__) /* XXX GPH hack */
+#ifdef HAVE_PRE_ARMV7 /* XXX GPH hack */
 	sync();
 #endif
 	SysPrintf("* %s \"%s\" [%d]\n",
@@ -815,7 +800,6 @@ int emu_load_state(int slot)
 	return LoadState(fname);
 }
 
-#ifndef HAVE_LIBRETRO
 #ifndef ANDROID
 
 void SysPrintf(const char *fmt, ...) {
@@ -840,7 +824,6 @@ void SysPrintf(const char *fmt, ...) {
 }
 
 #endif
-#endif /* HAVE_LIBRETRO */
 
 void SysMessage(const char *fmt, ...) {
 	va_list list;
@@ -890,15 +873,14 @@ static int _OpenPlugins(void) {
 
 	if (Config.UseNet && !NetOpened) {
 		netInfo info;
-		char path[MAXPATHLEN * 2];
+		char path[MAXPATHLEN];
 		char dotdir[MAXPATHLEN];
 
 		MAKE_PATH(dotdir, "/.pcsx/plugins/", NULL);
 
 		strcpy(info.EmuName, "PCSX");
-		memcpy(info.CdromID, CdromId, 9); /* no \0 trailing character? */
-		memcpy(info.CdromLabel, CdromLabel, 9);
-		info.CdromLabel[9] = '\0';
+		strncpy(info.CdromID, CdromId, 9);
+		strncpy(info.CdromLabel, CdromLabel, 9);
 		info.psxMem = psxM;
 		info.GPU_showScreenPic = GPU_showScreenPic;
 		info.GPU_displayText = GPU_displayText;
@@ -1010,7 +992,7 @@ void *SysLoadLibrary(const char *lib) {
 				return (void *)(long)(PLUGIN_DL_BASE + builtin_plugin_ids[i]);
 	}
 
-#if !defined(_WIN32) && !defined(NO_DYLIB)
+#ifndef _WIN32
 	ret = dlopen(lib, RTLD_NOW);
 	if (ret == NULL)
 		SysMessage("dlopen: %s", dlerror());
@@ -1027,7 +1009,7 @@ void *SysLoadSym(void *lib, const char *sym) {
 	if (PLUGIN_DL_BASE <= plugid && plugid < PLUGIN_DL_BASE + ARRAY_SIZE(builtin_plugins))
 		return plugin_link(plugid - PLUGIN_DL_BASE, sym);
 
-#if !defined(_WIN32) && !defined(NO_DYLIB)
+#ifndef _WIN32
 	return dlsym(lib, sym);
 #else
 	return NULL;
@@ -1035,9 +1017,7 @@ void *SysLoadSym(void *lib, const char *sym) {
 }
 
 const char *SysLibError() {
-#if defined(NO_DYLIB)
-   return NULL;
-#elif !defined(_WIN32)
+#ifndef _WIN32
 	return dlerror();
 #else
 	return "not supported";
@@ -1050,7 +1030,8 @@ void SysCloseLibrary(void *lib) {
 	if (PLUGIN_DL_BASE <= plugid && plugid < PLUGIN_DL_BASE + ARRAY_SIZE(builtin_plugins))
 		return;
 
-#if !defined(_WIN32) && !defined(NO_DYLIB)
+#ifndef _WIN32
 	dlclose(lib);
 #endif
 }
+

@@ -45,7 +45,6 @@ void update_texture_ptr(psx_gpu_struct *psx_gpu)
 
   switch((psx_gpu->render_state_base >> 8) & 0x3)
   {
-    default:
     case TEXTURE_MODE_4BPP:
       texture_base = psx_gpu->texture_4bpp_cache[psx_gpu->current_texture_page];
 
@@ -75,6 +74,7 @@ void update_texture_ptr(psx_gpu_struct *psx_gpu)
       texture_ptr += (psx_gpu->texture_window_y >> 4) << 12;
       break;
 
+    default:
     case TEXTURE_MODE_16BPP:
       texture_base = (u8 *)(psx_gpu->vram_ptr);
       texture_base += (psx_gpu->current_texture_page & 0xF) * 128;
@@ -868,72 +868,7 @@ extern void scale2x_tiles8(void *dst, const void *src, int w8, int h);
 
 #ifndef NEON_BUILD
 // TODO?
-void scale2x_tiles8(void *dst, const void *src, int w8, int h)
-{
-  uint16_t* d = (uint16_t*)dst;
-  const uint16_t* s = (const uint16_t*)src;
-
-  while ( h-- )
-  {
-    uint16_t* d_save = d;
-    const uint16_t* s_save = s;
-    int w = w8;
-
-    while ( w-- )
-    {
-      d[    0 ] = *s;
-      d[    1 ] = *s;
-      d[ 1024 ] = *s;
-      d[ 1025 ] = *s;
-      d += 2; s++;
-
-      d[    0 ] = *s;
-      d[    1 ] = *s;
-      d[ 1024 ] = *s;
-      d[ 1025 ] = *s;
-      d += 2; s++;
-
-      d[    0 ] = *s;
-      d[    1 ] = *s;
-      d[ 1024 ] = *s;
-      d[ 1025 ] = *s;
-      d += 2; s++;
-
-      d[    0 ] = *s;
-      d[    1 ] = *s;
-      d[ 1024 ] = *s;
-      d[ 1025 ] = *s;
-      d += 2; s++;
-
-      d[    0 ] = *s;
-      d[    1 ] = *s;
-      d[ 1024 ] = *s;
-      d[ 1025 ] = *s;
-      d += 2; s++;
-
-      d[    0 ] = *s;
-      d[    1 ] = *s;
-      d[ 1024 ] = *s;
-      d[ 1025 ] = *s;
-      d += 2; s++;
-
-      d[    0 ] = *s;
-      d[    1 ] = *s;
-      d[ 1024 ] = *s;
-      d[ 1025 ] = *s;
-      d += 2; s++;
-
-      d[    0 ] = *s;
-      d[    1 ] = *s;
-      d[ 1024 ] = *s;
-      d[ 1025 ] = *s;
-      d += 2; s++;
-    }
-
-    d = d_save + 2048;
-    s = s_save + 1024; /* or 512? */
-  }
-}
+void scale2x_tiles8(void *dst, const void *src, int w8, int h) {}
 #endif
 
 static int disable_main_render;

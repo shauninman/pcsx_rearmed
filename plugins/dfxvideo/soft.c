@@ -292,7 +292,7 @@ static inline void GetShadeTransCol32(uint32_t * pdest,uint32_t color)
     {
      int32_t sr,sb,sg,src,sbc,sgc,c;
      src=XCOL1(color);sbc=XCOL2(color);sgc=XCOL3(color);
-     c=GETLE32(pdest)>>16;
+     c=HIWORD(GETLE32(pdest));
      sr=(XCOL1(c))-src;   if(sr&0x8000) sr=0;
      sb=(XCOL2(c))-sbc;  if(sb&0x8000) sb=0;
      sg=(XCOL3(c))-sgc; if(sg&0x8000) sg=0;
@@ -327,8 +327,8 @@ static inline void GetShadeTransCol32(uint32_t * pdest,uint32_t color)
     {
      uint32_t ma=GETLE32(pdest);
      PUTLE32(pdest, (X32PSXCOL(r,g,b))|lSetMask);//0x80008000;
-     if(ma&0x80000000) PUTLE32(pdest, (ma&0xFFFF0000)|(*pdest&0xFFFF));
-     if(ma&0x00008000) PUTLE32(pdest, (ma&0xFFFF)    |(*pdest&0xFFFF0000));
+     if(ma&0x80000000) PUTLE32(pdest, (ma&0xFFFF0000)|(GETLE32(pdest)&0xFFFF));
+     if(ma&0x00008000) PUTLE32(pdest, (ma&0xFFFF)    |(GETLE32(pdest)&0xFFFF0000));
      return;
     }
    PUTLE32(pdest, (X32PSXCOL(r,g,b))|lSetMask);//0x80008000;
@@ -950,7 +950,7 @@ static void FillSoftwareAreaTrans(short x0,short y0,short x1, // FILL AREA TRANS
   {
    static int iCheat=0;
    col+=iCheat;
-   if(iCheat==1) iCheat=0; else iCheat=1;
+   iCheat ^= 1;
   }
 
 
@@ -971,7 +971,7 @@ static void FillSoftwareAreaTrans(short x0,short y0,short x1, // FILL AREA TRANS
   {
    uint32_t *DSTPtr;
    unsigned short LineOffset;
-   uint32_t lcol=lSetMask|(((uint32_t)(col))<<16)|col;
+   uint32_t lcol = HOST2LE32(lSetMask | (((uint32_t)(col)) << 16) | col);
    dx>>=1;
    DSTPtr = (uint32_t *)(psxVuw + (1024*y0) + x0);
    LineOffset = 512 - dx;
@@ -980,7 +980,7 @@ static void FillSoftwareAreaTrans(short x0,short y0,short x1, // FILL AREA TRANS
     {
      for(i=0;i<dy;i++)
       {
-       for(j=0;j<dx;j++) { PUTLE32(DSTPtr, lcol); DSTPtr++; }
+       for(j=0;j<dx;j++) { *DSTPtr++ = lcol; }
        DSTPtr += LineOffset;
       }
     }
@@ -1035,14 +1035,14 @@ static void FillSoftwareArea(short x0,short y0,short x1,      // FILL AREA (BLK 
   {
    uint32_t *DSTPtr;
    unsigned short LineOffset;
-   uint32_t lcol=(((int32_t)col)<<16)|col;
+   uint32_t lcol = HOST2LE32((((uint32_t)(col)) << 16) | col);
    dx>>=1;
    DSTPtr = (uint32_t *)(psxVuw + (1024*y0) + x0);
    LineOffset = 512 - dx;
 
    for(i=0;i<dy;i++)
     {
-     for(j=0;j<dx;j++) { PUTLE32(DSTPtr, lcol); DSTPtr++; }
+     for(j=0;j<dx;j++) { *DSTPtr++ = lcol; }
      DSTPtr += LineOffset;
     } 
   }
@@ -6316,7 +6316,6 @@ static void DrawSoftwareSpriteMirror(unsigned char * baseAddr,int32_t w,int32_t 
     sprtYa=(sprtY<<10);
     clutP=(clutY0<<10)+clutX0;
     for (sprCY=0;sprCY<sprtH;sprCY++)
-    {
      for (sprCX=0;sprCX<sprtW;sprCX++)
       {
        tC= psxVub[((textY0+(sprCY*lYDir))<<11) + textX0 +(sprCX*lXDir)];
@@ -6324,33 +6323,28 @@ static void DrawSoftwareSpriteMirror(unsigned char * baseAddr,int32_t w,int32_t 
        GetTextureTransColG_SPR(&psxVuw[sprA],GETLE16(&psxVuw[clutP+((tC>>4)&0xf)]));
        GetTextureTransColG_SPR(&psxVuw[sprA+1],GETLE16(&psxVuw[clutP+(tC&0xf)]));
       }
-    }
     return;
 
    case 1: 
 
     clutP>>=1;
     for(sprCY=0;sprCY<sprtH;sprCY++)
-    {
      for(sprCX=0;sprCX<sprtW;sprCX++)
       { 
        tC = psxVub[((textY0+(sprCY*lYDir))<<11)+(GlobalTextAddrX<<1) + textX0 + (sprCX*lXDir)] & 0xff;
        GetTextureTransColG_SPR(&psxVuw[((sprtY+sprCY)<<10)+sprtX + sprCX],psxVuw[clutP+tC]);
       }
-    }
-    return;
+     return;
 
    case 2:
 
     for (sprCY=0;sprCY<sprtH;sprCY++)
-    {
      for (sprCX=0;sprCX<sprtW;sprCX++)
       { 
        GetTextureTransColG_SPR(&psxVuw[((sprtY+sprCY)<<10)+sprtX+sprCX],
            GETLE16(&psxVuw[((textY0+(sprCY*lYDir))<<10)+GlobalTextAddrX + textX0 +(sprCX*lXDir)]));
       }
-    }
-    return;
+     return;
   }
 }
 

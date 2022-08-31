@@ -21,12 +21,16 @@
 
 #include "config.h"
 
-#define MEMCARD_DIR "memcards/"
-#define PLUGINS_DIR "plugins/"
-#define PLUGINS_CFG_DIR "plugins/cfg/"
-#define STATES_DIR "sstates/"
-#define CHEATS_DIR "cheats/"
-#define PATCHES_DIR "patches/"
+#define DEFAULT_MEM_CARD_1 "/.pcsx/memcards/card1.mcd"
+#define DEFAULT_MEM_CARD_2 "/.pcsx/memcards/card2.mcd"
+#define MEMCARD_DIR "/.pcsx/memcards/"
+#define PLUGINS_DIR "/.pcsx/plugins/"
+#define PLUGINS_CFG_DIR "/.pcsx/plugins/cfg/"
+#define PCSX_DOT_DIR "/.pcsx/"
+#define STATES_DIR "/.pcsx/sstates/"
+#define CHEATS_DIR "/.pcsx/cheats/"
+#define PATCHES_DIR "/.pcsx/patches/"
+#define BIOS_DIR "/bios/"
 
 extern char cfgfile_basename[MAXPATHLEN];
 
@@ -48,10 +52,6 @@ int emu_save_state(int slot);
 int emu_load_state(int slot);
 
 void set_cd_image(const char *fname);
-void make_path(char *buf, size_t size, const char *dir, const char *fname);
-
-#define MAKE_PATH(buf, dir, fname) \
-	make_path(buf, sizeof(buf), dir, fname)
 
 extern unsigned long gpuDisp;
 extern int ready_to_go, g_emu_want_quit, g_emu_resetting;
@@ -83,27 +83,11 @@ enum sched_action {
 
 #define SACTION_GUN_MASK (0x0f << SACTION_GUN_TRIGGER)
 
-#ifdef MENU_SHOULDER_COMBO
-int emu_menu_press;
-int emu_menu_cancel;
-#endif
-
 static inline void emu_set_action(enum sched_action action_)
 {
 	extern enum sched_action emu_action, emu_action_old;
 	extern int stop;
 
-#ifdef MENU_SHOULDER_COMBO
-	if (action_ == SACTION_NONE) {
-		if (emu_menu_press && !emu_menu_cancel)
-			action_ = SACTION_ENTER_MENU;
-		emu_menu_press = 0;
-		emu_menu_cancel = 0;
-	} else if (action_ == SACTION_ENTER_MENU) {
-		emu_menu_press = 1;
-		action_ = SACTION_NONE;
-	}
-#endif
 	if (action_ == SACTION_NONE)
 		emu_action_old = 0;
 	else if (action_ != emu_action_old)

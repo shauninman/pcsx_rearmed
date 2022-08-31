@@ -1,6 +1,3 @@
-#ifndef __P_SPU_C64X_H__
-#define __P_SPU_C64X_H__
-
 #define COMPONENT_NAME "pcsxr_spu"
 
 enum {
@@ -29,5 +26,3 @@ struct region_mem {
 };
 
 #define ACTIVE_CNT 3
-
-#endif /* __P_SPU_C64X_H__ */

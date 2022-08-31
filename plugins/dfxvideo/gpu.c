@@ -985,7 +985,7 @@ ENDVRAM:
          if((gpuDataC==254 && gpuDataP>=3) ||
             (gpuDataC==255 && gpuDataP>=4 && !(gpuDataP&1)))
           {
-           if((gpuDataM[gpuDataP] & 0xF000F000) == 0x50005000)
+           if((gpuDataM[gpuDataP] & HOST2LE32(0xF000F000)) == HOST2LE32(0x50005000))
             gpuDataP=gpuDataC-1;
           }
         }
@@ -1060,8 +1060,8 @@ long CALLBACK GPUdmaChain(uint32_t * baseAddrL, uint32_t addr)
    if(count>0) GPUwriteDataMem(&baseAddrL[dmaMem>>2],count);
 
    addr = GETLE32(&baseAddrL[addr>>2])&0xffffff;
-  }
- while (addr != 0xffffff);
+   } while (!(addr & 0x800000)); // contrary to some documentation, the end-of-linked-list marker is not actually 0xFF'FFFF
+                                  // any pointer with bit 23 set will do.
 
  GPUIsIdle;
 

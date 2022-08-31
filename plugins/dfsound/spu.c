@@ -247,6 +247,8 @@ static void StartSoundMain(int ch)
  s_chan->iSBPos=27;
  s_chan->spos=0;
 
+ s_chan->pCurr = spu.spuMemC+((regAreaGet(ch,6)&~1)<<3);
+
  spu.dwNewChannel&=~(1<<ch);                           // clear new channel bit
  spu.dwChannelOn|=1<<ch;
  spu.dwChannelDead&=~(1<<ch);
@@ -345,11 +347,11 @@ INLINE int iGetInterpolationVal(int *SB, int sinc, int spos, int fmod_freq)
      int vl, vr;int gpos;
      vl = (spos >> 6) & ~3;
      gpos = SB[28];
-     vr=(gauss[vl]*(int)gval0) >> 15;
-     vr+=(gauss[vl+1]*gval(1)) >> 15;
-     vr+=(gauss[vl+2]*gval(2)) >> 15;
-     vr+=(gauss[vl+3]*gval(3)) >> 15;
-     fa = vr;
+     vr=(gauss[vl]*(int)gval0)&~2047;
+     vr+=(gauss[vl+1]*gval(1))&~2047;
+     vr+=(gauss[vl+2]*gval(2))&~2047;
+     vr+=(gauss[vl+3]*gval(3))&~2047;
+     fa = vr>>11;
     } break;
    //--------------------------------------------------//
    case 1:                                             // simple interpolation
@@ -433,7 +435,7 @@ static int decode_block(void *unused, int ch, int *SB)
  decode_block_data(SB, start + 2, predict_nr, shift_factor);
 
  flags = start[1];
- if (flags & 4)
+ if (flags & 4 && (!s_chan->bIgnoreLoop))
   s_chan->pLoop = start;                   // loop adress
 
  start += 16;
@@ -1316,14 +1318,12 @@ static void SetupStreams(void)
  spu.pSpuBuffer = (unsigned char *)malloc(32768);      // alloc mixing buffer
  spu.SSumLR = calloc(NSSIZE * 2, sizeof(spu.SSumLR[0]));
 
- spu.XAStart =                                         // alloc xa buffer
-  (uint32_t *)malloc(44100 * sizeof(uint32_t));
+ spu.XAStart = malloc(44100 * sizeof(uint32_t));       // alloc xa buffer
  spu.XAEnd   = spu.XAStart + 44100;
  spu.XAPlay  = spu.XAStart;
  spu.XAFeed  = spu.XAStart;
 
- spu.CDDAStart =                                       // alloc cdda buffer
-  (uint32_t *)malloc(CDDA_BUFFER_SIZE);
+ spu.CDDAStart = malloc(CDDA_BUFFER_SIZE);             // alloc cdda buffer
  spu.CDDAEnd   = spu.CDDAStart + 16384;
  spu.CDDAPlay  = spu.CDDAStart;
  spu.CDDAFeed  = spu.CDDAStart;
@@ -1489,6 +1489,7 @@ long CALLBACK SPUinit(void)
    spu.s_chan[i].ADSRX.SustainIncrease = 1;
    spu.s_chan[i].pLoop = spu.spuMemC;
    spu.s_chan[i].pCurr = spu.spuMemC;
+   spu.s_chan[i].bIgnoreLoop = 0;
   }
 
  spu.bSpuInit=1;                                       // flag: we are inited
@@ -1577,7 +1578,7 @@ void CALLBACK SPUregisterCallback(void (CALLBACK *callback)(void))
  spu.irqCallback = callback;
 }
 
-void CALLBACK SPUregisterCDDAVolume(void (CALLBACK *CDDAVcallback)(unsigned short,unsigned short))
+void CALLBACK SPUregisterCDDAVolume(void (CALLBACK *CDDAVcallback)(short, short))
 {
  spu.cddavCallback = CDDAVcallback;
 }

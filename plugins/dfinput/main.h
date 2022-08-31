@@ -1,6 +1,3 @@
-#ifndef __P_MAIN_H__
-#define __P_MAIN_H__
-
 #include "psemu_plugin_defs.h"
 #include "externals.h"
 
@@ -19,5 +16,3 @@ void guncon_init(void);
 /* get button state and pad type from main emu */
 extern long (*PAD1_readPort1)(PadDataS *pad);
 extern long (*PAD2_readPort2)(PadDataS *pad);
-
-#endif /* __P_MAIN_H__ */

@@ -149,7 +149,13 @@
 #define gteBFC (((s32 *)regs->CP2C.r)[23])
 #define gteOFX (((s32 *)regs->CP2C.r)[24])
 #define gteOFY (((s32 *)regs->CP2C.r)[25])
-#define gteH   (regs->CP2C.p[26].sw.l)
+// senquack - gteH register is u16, not s16, and used in GTE that way.
+//  HOWEVER when read back by CPU using CFC2, it will be incorrectly
+//  sign-extended by bug in original hardware, according to Nocash docs
+//  GTE section 'Screen Offset and Distance'. The emulator does this
+//  sign extension when it is loaded to GTE by CTC2.
+//#define gteH   (psxRegs.CP2C.p[26].sw.l)
+#define gteH   (psxRegs.CP2C.p[26].w.l)
 #define gteDQA (regs->CP2C.p[27].sw.l)
 #define gteDQB (((s32 *)regs->CP2C.r)[28])
 #define gteZSF3 (regs->CP2C.p[29].sw.l)
@@ -254,11 +260,48 @@ static inline u32 limE_(psxCP2Regs *regs, u32 result) {
 #define A3U(x) (x)
 #endif
 
+
+//senquack - n param should be unsigned (will be 'gteH' reg which is u16)
+#ifdef GTE_USE_NATIVE_DIVIDE
+INLINE u32 DIVIDE(u16 n, u16 d) {
+	if (n < d * 2) {
+		return ((u32)n << 16) / d;
+	}
+	return 0xffffffff;
+}
+#else
 #include "gte_divider.h"
+#endif // GTE_USE_NATIVE_DIVIDE
 
 #ifndef FLAGLESS
 
-u32 MFC2(int reg) {
+const unsigned char gte_cycletab[64] = {
+	/*   1   2   3   4   5   6   7   8   9   a   b   c   d   e   f */
+	 0, 15,  0,  0,  0,  0,  8,  0,  0,  0,  0,  0,  6,  0,  0,  0,
+	 8,  8,  8, 19, 13,  0, 44,  0,  0,  0,  0, 17, 11,  0, 14,  0,
+	30,  0,  0,  0,  0,  0,  0,  0,  5,  8, 17,  0,  0,  5,  6,  0,
+	23,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  5,  5, 39,
+};
+
+// warning: called by the dynarec
+int gteCheckStallRaw(u32 op_cycles, psxRegisters *regs) {
+	u32 left = regs->gteBusyCycle - regs->cycle;
+	int stall = 0;
+
+	if (left <= 44) {
+		//printf("c %2u stall %2u %u\n", op_cycles, left, regs->cycle);
+		regs->cycle = regs->gteBusyCycle;
+		stall = left;
+	}
+	regs->gteBusyCycle = regs->cycle + op_cycles;
+	return stall;
+}
+
+void gteCheckStall(u32 op) {
+	gteCheckStallRaw(gte_cycletab[op], &psxRegs);
+}
+
+static inline u32 MFC2(int reg) {
 	psxCP2Regs *regs = &psxRegs.CP2;
 	switch (reg) {
 		case 1:
@@ -293,7 +336,7 @@ u32 MFC2(int reg) {
 	return psxRegs.CP2D.r[reg];
 }
 
-void MTC2(u32 value, int reg) {
+static inline void MTC2(u32 value, int reg) {
 	psxCP2Regs *regs = &psxRegs.CP2;
 	switch (reg) {
 		case 15:
@@ -305,9 +348,10 @@ void MTC2(u32 value, int reg) {
 
 		case 28:
 			gteIRGB = value;
-			gteIR1 = (value & 0x1f) << 7;
-			gteIR2 = (value & 0x3e0) << 2;
-			gteIR3 = (value & 0x7c00) >> 3;
+			// not gteIR1 etc. just to be consistent with dynarec
+			regs->CP2D.n.ir1 = (value & 0x1f) << 7;
+			regs->CP2D.n.ir2 = (value & 0x3e0) << 2;
+			regs->CP2D.n.ir3 = (value & 0x7c00) >> 3;
 			break;
 
 		case 30:
@@ -339,7 +383,7 @@ void MTC2(u32 value, int reg) {
 	}
 }
 
-void CTC2(u32 value, int reg) {
+static inline void CTC2(u32 value, int reg) {
 	switch (reg) {
 		case 4:
 		case 12:
@@ -386,6 +430,16 @@ void gteLWC2() {
 
 void gteSWC2() {
 	psxMemWrite32(_oB_, MFC2(_Rt_));
+}
+
+void gteLWC2_stall() {
+	gteCheckStall(0);
+	gteLWC2();
+}
+
+void gteSWC2_stall() {
+	gteCheckStall(0);
+	gteSWC2();
 }
 
 #endif // FLAGLESS

@@ -1,6 +1,3 @@
-#ifndef __PL_GUN_TS_H__
-#define __PL_GUN_TS_H__
-
 #ifdef HAVE_TSLIB
 
 struct tsdev;
@@ -19,5 +16,3 @@ int pl_gun_ts_get_fd(struct tsdev *ts);
 #define pl_set_gun_rect(...) do {} while (0)
 
 #endif
-
-#endif /* __PL_GUN_TS_H__ */

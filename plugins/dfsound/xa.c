@@ -43,14 +43,13 @@ INLINE void MixXA(int *SSumLR, int ns_to, int decode_pos)
  int cursor = decode_pos;
  int ns;
  short l, r;
- uint32_t v;
+ uint32_t v = spu.XALastVal;
 
  if(spu.XAPlay != spu.XAFeed || spu.XARepeat > 0)
  {
   if(spu.XAPlay == spu.XAFeed)
    spu.XARepeat--;
 
-  v = spu.XALastVal;
   for(ns = 0; ns < ns_to*2; )
    {
     if(spu.XAPlay != spu.XAFeed) v=*spu.XAPlay++;
@@ -67,27 +66,35 @@ INLINE void MixXA(int *SSumLR, int ns_to, int decode_pos)
    }
   spu.XALastVal = v;
  }
+ // occasionally CDDAFeed underflows by a few samples due to poor timing,
+ // hence this 'ns_to < 8'
+ else if(spu.CDDAPlay != spu.CDDAFeed || ns_to < 8)
+ {
+  for(ns = 0; ns < ns_to*2; )
+   {
+    if(spu.CDDAPlay != spu.CDDAFeed) v=*spu.CDDAPlay++;
+    if(spu.CDDAPlay == spu.CDDAEnd) spu.CDDAPlay=spu.CDDAStart;
 
- for(ns = 0; ns < ns_to * 2 && spu.CDDAPlay!=spu.CDDAFeed && (spu.CDDAPlay!=spu.CDDAEnd-1||spu.CDDAFeed!=spu.CDDAStart);)
-  {
-   v=*spu.CDDAPlay++;
-   if(spu.CDDAPlay==spu.CDDAEnd) spu.CDDAPlay=spu.CDDAStart;
+    l = ((int)(short)v * spu.iLeftXAVol) >> 15;
+    r = ((int)(short)(v >> 16) * spu.iLeftXAVol) >> 15;
+    SSumLR[ns++] += l;
+    SSumLR[ns++] += r;
 
-   l = ((int)(short)v * spu.iLeftXAVol) >> 15;
-   r = ((int)(short)(v >> 16) * spu.iLeftXAVol) >> 15;
-   SSumLR[ns++] += l;
-   SSumLR[ns++] += r;
-
-   spu.spuMem[cursor] = v;
-   spu.spuMem[cursor + 0x400/2] = v >> 16;
-   cursor = (cursor + 1) & 0x1ff;
-  }
+    spu.spuMem[cursor] = v;
+    spu.spuMem[cursor + 0x400/2] = v >> 16;
+    cursor = (cursor + 1) & 0x1ff;
+   }
+  spu.XALastVal = v;
+ }
+ else
+  spu.XALastVal = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////
 // small linux time helper... only used for watchdog
 ////////////////////////////////////////////////////////////////////////
 
+#if 0
 static unsigned long timeGetTime_spu()
 {
 #if defined(NO_OS)
@@ -100,6 +107,7 @@ static unsigned long timeGetTime_spu()
  return tv.tv_sec * 1000 + tv.tv_usec/1000;            // to do that, but at least it works
 #endif
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////
 // FEED XA 
@@ -127,6 +135,7 @@ INLINE void FeedXA(xa_decode_t *xap)
  if(iPlace==0) return;                                 // no place at all
 
  //----------------------------------------------------//
+#if 0
  if(spu_config.iXAPitch)                               // pitch change option?
   {
    static DWORD dwLT=0;
@@ -163,6 +172,7 @@ INLINE void FeedXA(xa_decode_t *xap)
      if(iLastSize) iSize=iLastSize;
     }
   }
+#endif
  //----------------------------------------------------//
 
  spos=0x10000L;
@@ -173,6 +183,7 @@ INLINE void FeedXA(xa_decode_t *xap)
    uint32_t * pS=(uint32_t *)xap->pcm;
    uint32_t l=0;
 
+#if 0
    if(spu_config.iXAPitch)
     {
      int32_t l1,l2;short s;
@@ -189,16 +200,16 @@ INLINE void FeedXA(xa_decode_t *xap)
            spos -= 0x10000L;
           }
          vl = (spos >> 6) & ~3;
-         vr=(gauss[vl]*gvall0) >> 15;
-         vr+=(gauss[vl+1]*gvall(1)) >> 15;
-         vr+=(gauss[vl+2]*gvall(2)) >> 15;
-         vr+=(gauss[vl+3]*gvall(3)) >> 15;
-         l= vr & 0xffff;
-         vr=(gauss[vl]*gvalr0) >> 15;
-         vr+=(gauss[vl+1]*gvalr(1)) >> 15;
-         vr+=(gauss[vl+2]*gvalr(2)) >> 15;
-         vr+=(gauss[vl+3]*gvalr(3)) >> 15;
-         l |= vr << 16;
+         vr=(gauss[vl]*gvall0)&~2047;
+         vr+=(gauss[vl+1]*gvall(1))&~2047;
+         vr+=(gauss[vl+2]*gvall(2))&~2047;
+         vr+=(gauss[vl+3]*gvall(3))&~2047;
+         l= (vr >> 11) & 0xffff;
+         vr=(gauss[vl]*gvalr0)&~2047;
+         vr+=(gauss[vl+1]*gvalr(1))&~2047;
+         vr+=(gauss[vl+2]*gvalr(2))&~2047;
+         vr+=(gauss[vl+3]*gvalr(3))&~2047;
+         l |= vr << 5;
         }
        else
         {
@@ -232,6 +243,7 @@ INLINE void FeedXA(xa_decode_t *xap)
       }
     }
    else
+#endif
     {
      for(i=0;i<iSize;i++)
       {
@@ -246,16 +258,16 @@ INLINE void FeedXA(xa_decode_t *xap)
            spos -= 0x10000L;
           }
          vl = (spos >> 6) & ~3;
-         vr=(gauss[vl]*gvall0) >> 15;
-         vr+=(gauss[vl+1]*gvall(1)) >> 15;
-         vr+=(gauss[vl+2]*gvall(2)) >> 15;
-         vr+=(gauss[vl+3]*gvall(3)) >> 15;
-         l= vr & 0xffff;
-         vr=(gauss[vl]*gvalr0) >> 15;
-         vr+=(gauss[vl+1]*gvalr(1)) >> 15;
-         vr+=(gauss[vl+2]*gvalr(2)) >> 15;
-         vr+=(gauss[vl+3]*gvalr(3)) >> 15;
-         l |= vr << 16;
+         vr=(gauss[vl]*gvall0)&~2047;
+         vr+=(gauss[vl+1]*gvall(1))&~2047;
+         vr+=(gauss[vl+2]*gvall(2))&~2047;
+         vr+=(gauss[vl+3]*gvall(3))&~2047;
+         l= (vr >> 11) & 0xffff;
+         vr=(gauss[vl]*gvalr0)&~2047;
+         vr+=(gauss[vl+1]*gvalr(1))&~2047;
+         vr+=(gauss[vl+2]*gvalr(2))&~2047;
+         vr+=(gauss[vl+3]*gvalr(3))&~2047;
+         l |= vr << 5;
         }
        else
         {
@@ -284,6 +296,7 @@ INLINE void FeedXA(xa_decode_t *xap)
    unsigned short * pS=(unsigned short *)xap->pcm;
    uint32_t l;short s=0;
 
+#if 0
    if(spu_config.iXAPitch)
     {
      int32_t l1;
@@ -298,11 +311,11 @@ INLINE void FeedXA(xa_decode_t *xap)
            spos -= 0x10000L;
           }
          vl = (spos >> 6) & ~3;
-         vr=(gauss[vl]*gvall0) >> 15;
-         vr+=(gauss[vl+1]*gvall(1)) >> 15;
-         vr+=(gauss[vl+2]*gvall(2)) >> 15;
-         vr+=(gauss[vl+3]*gvall(3)) >> 15;
-         l1=s= vr;
+         vr=(gauss[vl]*gvall0)&~2047;
+         vr+=(gauss[vl+1]*gvall(1))&~2047;
+         vr+=(gauss[vl+2]*gvall(2))&~2047;
+         vr+=(gauss[vl+3]*gvall(3))&~2047;
+         l1=s= vr >> 11;
          l1 &= 0xffff;
         }
        else
@@ -331,6 +344,7 @@ INLINE void FeedXA(xa_decode_t *xap)
       }
     }
    else
+#endif
     {
      for(i=0;i<iSize;i++)
       {
@@ -343,11 +357,11 @@ INLINE void FeedXA(xa_decode_t *xap)
            spos -= 0x10000L;
           }
          vl = (spos >> 6) & ~3;
-         vr=(gauss[vl]*gvall0) >> 15;
-         vr+=(gauss[vl+1]*gvall(1)) >> 15;
-         vr+=(gauss[vl+2]*gvall(2)) >> 15;
-         vr+=(gauss[vl+3]*gvall(3)) >> 15;
-         l=s= vr;
+         vr=(gauss[vl]*gvall0)&~2047;
+         vr+=(gauss[vl+1]*gvall(1))&~2047;
+         vr+=(gauss[vl+2]*gvall(2))&~2047;
+         vr+=(gauss[vl+3]*gvall(3))&~2047;
+         l=s= vr >> 11;
         }
        else
         {

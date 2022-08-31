@@ -31,6 +31,17 @@ extern "C" {
 
 #include "config.h"
 
+// XXX: don't care but maybe fix it someday
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#pragma GCC diagnostic ignored "-Wformat-overflow"
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+#endif
+// devkitpro has uint32_t as long, unfortunately
+#ifdef _3DS
+#pragma GCC diagnostic ignored "-Wformat"
+#endif
+
 // System includes
 #include <stdio.h>
 #include <string.h>
@@ -40,9 +51,7 @@ extern "C" {
 #include <math.h>
 #include <time.h>
 #include <ctype.h>
-#ifndef __SWITCH__
 #include <sys/types.h>
-#endif
 #include <assert.h>
 
 // Define types
@@ -120,16 +129,16 @@ typedef struct {
 	boolean Mdec;
 	boolean PsxAuto;
 	boolean Cdda;
-	boolean AsyncCD;
 	boolean CHD_Precache; /* loads disk image into memory, works with CHD only. */
 	boolean HLE;
-	boolean SlowBoot;
 	boolean Debug;
 	boolean PsxOut;
 	boolean SpuIrq;
 	boolean RCntFix;
 	boolean UseNet;
 	boolean VSyncWA;
+	boolean icache_emulation;
+	boolean DisableStalls;
 	u8 Cpu; // CPU_DYNAREC or CPU_INTERPRETER
 	u8 PsxType; // PSX_TYPE_NTSC or PSX_TYPE_PAL
 #ifdef _WIN32

@@ -25,20 +25,22 @@
 #include "cdrom.h"
 #include "mdec.h"
 #include "gte.h"
+#include "psxinterpreter.h"
 
 R3000Acpu *psxCpu = NULL;
-#ifndef NEW_DYNAREC
+#ifdef DRC_DISABLE
 psxRegisters psxRegs;
 #endif
 
 int psxInit() {
-	SysPrintf(_("Running PCSX Version %s (%s).\n"), PCSX_VERSION, __DATE__);
+	SysPrintf(_("Running PCSX Version %s (%s).\n"), PACKAGE_VERSION, __DATE__);
 
-#if defined(NEW_DYNAREC) || defined(LIGHTREC)
+#ifndef DRC_DISABLE
 	if (Config.Cpu == CPU_INTERPRETER) {
 		psxCpu = &psxInt;
 	} else psxCpu = &psxRec;
 #else
+	Config.Cpu = CPU_INTERPRETER;
 	psxCpu = &psxInt;
 #endif
 
@@ -52,7 +54,7 @@ int psxInit() {
 void psxReset() {
 	psxMemReset();
 
-	memset(&psxRegs, 0x00, sizeof(psxRegs));
+	memset(&psxRegs, 0, sizeof(psxRegs));
 
 	psxRegs.pc = 0xbfc00000; // Start in bootstrap
 
@@ -81,7 +83,9 @@ void psxShutdown() {
 }
 
 void psxException(u32 code, u32 bd) {
-	if (!Config.HLE && ((((psxRegs.code = PSXMu32(psxRegs.pc)) >> 24) & 0xfe) == 0x4a)) {
+	psxRegs.code = fetch(psxRegs.pc);
+	
+	if (!Config.HLE && ((((psxRegs.code) >> 24) & 0xfe) == 0x4a)) {
 		// "hokuto no ken" / "Crash Bandicot 2" ...
 		// BIOS does not allow to return to GTE instructions
 		// (just skips it, supposedly because it's scheduled already)
@@ -98,7 +102,6 @@ void psxException(u32 code, u32 bd) {
 #ifdef PSXCPU_LOG
 		PSXCPU_LOG("bd set!!!\n");
 #endif
-		SysPrintf("bd set!!!\n");
 		psxRegs.CP0.n.Cause |= 0x80000000;
 		psxRegs.CP0.n.EPC = (psxRegs.pc - 4);
 	} else

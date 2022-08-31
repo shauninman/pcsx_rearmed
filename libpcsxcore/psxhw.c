@@ -38,13 +38,13 @@ void psxHwReset() {
 	mdecInit(); // initialize mdec decoder
 	cdrReset();
 	psxRcntInit();
-	HW_GPU_STATUS = 0x14802000;
+	HW_GPU_STATUS = SWAP32(0x14802000);
 }
 
 u8 psxHwRead8(u32 add) {
 	unsigned char hard;
 
-	switch (add) {
+	switch (add & 0x1fffffff) {
 		case 0x1f801040: hard = sioRead8();break; 
 #ifdef ENABLE_SIO1API
 		case 0x1f801050: hard = SIO1_readData8(); break;
@@ -70,7 +70,7 @@ u8 psxHwRead8(u32 add) {
 u16 psxHwRead16(u32 add) {
 	unsigned short hard;
 
-	switch (add) {
+	switch (add & 0x1fffffff) {
 #ifdef PSXHW_LOG
 		case 0x1f801070: PSXHW_LOG("IREG 16bit read %x\n", psxHu16(0x1070));
 			return psxHu16(0x1070);
@@ -124,6 +124,13 @@ u16 psxHwRead16(u32 add) {
 		case 0x1f80105e:
 			hard = SIO1_readBaud16();
 			return hard;
+#else
+		/* Fixes Armored Core misdetecting the Link cable being detected.
+		 * We want to turn that thing off and force it to do local multiplayer instead.
+		 * Thanks Sony for the fix, they fixed it in their PS Classic fork.
+		 */
+		case 0x1f801054:
+			return 0x80;
 #endif
 		case 0x1f801100:
 			hard = psxRcntRcount(0);
@@ -204,7 +211,7 @@ u16 psxHwRead16(u32 add) {
 u32 psxHwRead32(u32 add) {
 	u32 hard;
 
-	switch (add) {
+	switch (add & 0x1fffffff) {
 		case 0x1f801040:
 			hard = sioRead8();
 			hard |= sioRead8() << 8;
@@ -241,8 +248,8 @@ u32 psxHwRead32(u32 add) {
 			return hard;
 		case 0x1f801814:
 			gpuSyncPluginSR();
-			hard = HW_GPU_STATUS;
-			if (hSyncCount < 240 && (HW_GPU_STATUS & PSXGPU_ILACE_BITS) != PSXGPU_ILACE_BITS)
+			hard = SWAP32(HW_GPU_STATUS);
+			if (hSyncCount < 240 && (hard & PSXGPU_ILACE_BITS) != PSXGPU_ILACE_BITS)
 				hard |= PSXGPU_LCF & (psxRegs.cycle << 20);
 #ifdef PSXHW_LOG
 			PSXHW_LOG("GPU STATUS 32bit read %x\n", hard);
@@ -355,7 +362,7 @@ u32 psxHwRead32(u32 add) {
 }
 
 void psxHwWrite8(u32 add, u8 value) {
-	switch (add) {
+	switch (add & 0x1fffffff) {
 		case 0x1f801040: sioWrite8(value); break;
 #ifdef ENABLE_SIO1API
 		case 0x1f801050: SIO1_writeData8(value); break;
@@ -379,7 +386,7 @@ void psxHwWrite8(u32 add, u8 value) {
 }
 
 void psxHwWrite16(u32 add, u16 value) {
-	switch (add) {
+	switch (add & 0x1fffffff) {
 		case 0x1f801040:
 			sioWrite8((unsigned char)value);
 			sioWrite8((unsigned char)(value>>8));
@@ -439,7 +446,7 @@ void psxHwWrite16(u32 add, u16 value) {
 			PSXHW_LOG("IMASK 16bit write %x\n", value);
 #endif
 			psxHu16ref(0x1074) = SWAPu16(value);
-			if (psxHu16ref(0x1070) & value)
+			if (psxHu16ref(0x1070) & SWAPu16(value))
 				new_dyna_set_event(PSXINT_NEWDRC_CHECK, 1);
 			return;
 
@@ -518,7 +525,7 @@ void psxHwWrite16(u32 add, u16 value) {
 }
 
 void psxHwWrite32(u32 add, u32 value) {
-	switch (add) {
+	switch (add & 0x1fffffff) {
 	    case 0x1f801040:
 			sioWrite8((unsigned char)value);
 			sioWrite8((unsigned char)((value&0xff) >>  8));
@@ -553,7 +560,7 @@ void psxHwWrite32(u32 add, u32 value) {
 			PSXHW_LOG("IMASK 32bit write %x\n", value);
 #endif
 			psxHu32ref(0x1074) = SWAPu32(value);
-			if (psxHu32ref(0x1070) & value)
+			if (psxHu32ref(0x1070) & SWAPu32(value))
 				new_dyna_set_event(PSXINT_NEWDRC_CHECK, 1);
 			return;
 

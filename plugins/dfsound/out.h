@@ -1,5 +1,3 @@
-#ifndef __P_OUT_H__
-#define __P_OUT_H__
 
 struct out_driver {
 	const char *name;
@@ -7,11 +5,8 @@ struct out_driver {
 	void (*finish)(void);
 	int (*busy)(void);
 	void (*feed)(void *data, int bytes);
-	float (*capacity)(void);
 };
 
 extern struct out_driver *out_current;
 
 void SetupSound(void);
-
-#endif /* __P_OUT_H__ */

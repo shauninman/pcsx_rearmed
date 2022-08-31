@@ -23,7 +23,8 @@
 
 #include "psxcounters.h"
 #include "gpu.h"
-#include "debug.h"
+//#include "debug.h"
+#define DebugVSync()
 
 /******************************************************************************/
 
@@ -60,20 +61,15 @@ static const u32 CountToOverflow  = 0;
 static const u32 CountToTarget    = 1;
 
 static const u32 FrameRate[]      = { 60, 50 };
-static const u32 HSyncTotal[]     = { 263, 313 };
+static const u32 HSyncTotal[]     = { 263, 314 }; // actually one more on odd lines for PAL
 #define VBlankStart 240
 
 #define VERBOSE_LEVEL 0
-#if VERBOSE_LEVEL > 0
-static const s32 VerboseLevel     = VERBOSE_LEVEL;
-#endif
 
 /******************************************************************************/
-
-#ifndef NEW_DYNAREC
+#ifdef DRC_DISABLE
 Rcnt rcnts[ CounterQuantity ];
 #endif
-
 u32 hSyncCount = 0;
 u32 frame_counter = 0;
 static u32 hsync_steps = 0;
@@ -93,7 +89,7 @@ static
 void verboseLog( u32 level, const char *str, ... )
 {
 #if VERBOSE_LEVEL > 0
-    if( level <= VerboseLevel )
+    if( level <= VERBOSE_LEVEL )
     {
         va_list va;
         char buf[ 4096 ];
@@ -304,19 +300,19 @@ void psxRcntUpdate()
     cycle = psxRegs.cycle;
 
     // rcnt 0.
-    if( cycle - rcnts[0].cycleStart >= rcnts[0].cycle )
+    while( cycle - rcnts[0].cycleStart >= rcnts[0].cycle )
     {
         psxRcntReset( 0 );
     }
 
     // rcnt 1.
-    if( cycle - rcnts[1].cycleStart >= rcnts[1].cycle )
+    while( cycle - rcnts[1].cycleStart >= rcnts[1].cycle )
     {
         psxRcntReset( 1 );
     }
 
     // rcnt 2.
-    if( cycle - rcnts[2].cycleStart >= rcnts[2].cycle )
+    while( cycle - rcnts[2].cycleStart >= rcnts[2].cycle )
     {
         psxRcntReset( 2 );
     }
@@ -332,7 +328,7 @@ void psxRcntUpdate()
         // VSync irq.
         if( hSyncCount == VBlankStart )
         {
-            HW_GPU_STATUS &= ~PSXGPU_LCF;
+            HW_GPU_STATUS &= SWAP32(~PSXGPU_LCF);
             GPU_vBlank( 1, 0 );
             setIrq( 0x01 );
 
@@ -352,9 +348,9 @@ void psxRcntUpdate()
             frame_counter++;
 
             gpuSyncPluginSR();
-            if( (HW_GPU_STATUS & PSXGPU_ILACE_BITS) == PSXGPU_ILACE_BITS )
-                HW_GPU_STATUS |= frame_counter << 31;
-            GPU_vBlank( 0, HW_GPU_STATUS >> 31 );
+            if ((HW_GPU_STATUS & SWAP32(PSXGPU_ILACE_BITS)) == SWAP32(PSXGPU_ILACE_BITS))
+                HW_GPU_STATUS |= SWAP32(frame_counter << 31);
+            GPU_vBlank(0, SWAP32(HW_GPU_STATUS) >> 31);
         }
 
         // Schedule next call, in hsyncs
@@ -507,13 +503,16 @@ s32 psxRcntFreeze( void *f, s32 Mode )
     if (Mode == 0)
     {
         // don't trust things from a savestate
+        rcnts[3].rate = 1;
         for( i = 0; i < CounterQuantity; ++i )
         {
             _psxRcntWmode( i, rcnts[i].mode );
             count = (psxRegs.cycle - rcnts[i].cycleStart) / rcnts[i].rate;
             _psxRcntWcount( i, count );
         }
-        hsync_steps = (psxRegs.cycle - rcnts[3].cycleStart) / rcnts[3].target;
+        hsync_steps = 0;
+        if (rcnts[3].target)
+           hsync_steps = (psxRegs.cycle - rcnts[3].cycleStart) / rcnts[3].target;
         psxRcntSet();
 
         base_cycle = 0;

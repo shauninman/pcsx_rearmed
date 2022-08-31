@@ -9,12 +9,7 @@
  */
 
 #include <stdio.h>
-
-#ifdef _WIN32
-#include <mman.h>
-#else
 #include <sys/mman.h>
-#endif
 
 extern const unsigned char cmd_lengths[256];
 #define command_lengths cmd_lengths
@@ -36,10 +31,19 @@ int do_cmd_list(uint32_t *list, int count, int *last_cmd)
 {
   int ret;
 
+#if defined(__arm__) && defined(NEON_BUILD) && !defined(SIMD_BUILD)
+  // the asm doesn't bother to save callee-save vector regs, so do it here
+  __asm__ __volatile__("":::"q4","q5","q6","q7");
+#endif
+
   if (gpu.state.enhancement_active)
     ret = gpu_parse_enhanced(&egpu, list, count * 4, (u32 *)last_cmd);
   else
     ret = gpu_parse(&egpu, list, count * 4, (u32 *)last_cmd);
+
+#if defined(__arm__) && defined(NEON_BUILD) && !defined(SIMD_BUILD)
+  __asm__ __volatile__("":::"q4","q5","q6","q7");
+#endif
 
   ex_regs[1] &= ~0x1ff;
   ex_regs[1] |= egpu.texture_settings & 0x1ff;
@@ -138,7 +142,7 @@ void renderer_sync_ecmds(uint32_t *ecmds)
 void renderer_update_caches(int x, int y, int w, int h)
 {
   update_texture_cache_region(&egpu, x, y, x + w - 1, y + h - 1);
-  if (gpu.state.enhancement_active && !gpu.status.rgb24)
+  if (gpu.state.enhancement_active && !(gpu.status & PSX_GPU_STATUS_RGB24))
     sync_enhancement_buffers(x, y, w, h);
 }
 
@@ -189,24 +193,4 @@ void renderer_set_config(const struct rearmed_cbs *cbs)
     map_enhancement_buffer();
   if (cbs->pl_set_gpu_caps)
     cbs->pl_set_gpu_caps(GPU_CAP_SUPPORTS_2X);
-  
-  egpu.use_dithering = cbs->gpu_neon.allow_dithering;
-  if(!egpu.use_dithering) {
-    egpu.dither_table[0] = dither_table_row(0, 0, 0, 0);
-    egpu.dither_table[1] = dither_table_row(0, 0, 0, 0);
-    egpu.dither_table[2] = dither_table_row(0, 0, 0, 0);
-    egpu.dither_table[3] = dither_table_row(0, 0, 0, 0);
-  } else {
-    egpu.dither_table[0] = dither_table_row(-4, 0, -3, 1);
-    egpu.dither_table[1] = dither_table_row(2, -2, 3, -1);
-    egpu.dither_table[2] = dither_table_row(-3, 1, -4, 0);
-    egpu.dither_table[3] = dither_table_row(3, -1, 2, -2); 
-  }
-
-}
-void renderer_sync(void)
-{
-}
-void renderer_notify_update_lace(int updated)
-{
 }

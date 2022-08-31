@@ -11,12 +11,6 @@ static void none_finish(void)
 {
 }
 
-// GET BUFFER AVAILABLE
-static float none_capacity(void)
-{
-  return 0.3;
-}
-
 // GET BYTES BUFFERED
 static int none_busy(void)
 {
@@ -35,5 +29,4 @@ void out_register_none(struct out_driver *drv)
 	drv->finish = none_finish;
 	drv->busy = none_busy;
 	drv->feed = none_feed;
-  drv->capacity = none_capacity;
 }

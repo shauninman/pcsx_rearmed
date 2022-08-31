@@ -2,16 +2,9 @@
 
 # default stuff goes here, so that config can override
 TARGET ?= pcsx
-CFLAGS += -Wall -Iinclude -ffast-math -DPICO_HOME_DIR='"/.pcsx/"'
-
-ifeq ($(DEBUG), 1)
-CFLAGS += -O0 -ggdb
-else
-ifeq ($(platform), $(filter $(platform), vita ctr))
-CFLAGS += -O3 -DNDEBUG
-else
+CFLAGS += -Wall -ggdb -Iinclude -ffast-math
+ifndef DEBUG
 CFLAGS += -O2 -DNDEBUG
-endif
 endif
 CXXFLAGS += $(CFLAGS)
 #DRC_DBG = 1
@@ -45,96 +38,47 @@ ifdef PCNT
 CFLAGS += -DPCNT
 endif
 
-ifeq ($(PROFILE), YES)
-CFLAGS	+= -fprofile-generate=./profile
-else ifeq ($(PROFILE), APPLY)
-CFLAGS	+= -fprofile-use -fprofile-dir=./profile -fbranch-probabilities
-endif
-
-ifeq ($(PROFILE), YES)
-LDFLAGS	+= -lgcov
-endif
-
 # core
-OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore/debug.o \
-	libpcsxcore/decode_xa.o libpcsxcore/disr3000a.o libpcsxcore/mdec.o \
+OBJS += libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cheat.o libpcsxcore/database.o \
+	libpcsxcore/decode_xa.o libpcsxcore/mdec.o \
 	libpcsxcore/misc.o libpcsxcore/plugins.o libpcsxcore/ppf.o libpcsxcore/psxbios.o \
 	libpcsxcore/psxcommon.o libpcsxcore/psxcounters.o libpcsxcore/psxdma.o libpcsxcore/psxhle.o \
 	libpcsxcore/psxhw.o libpcsxcore/psxinterpreter.o libpcsxcore/psxmem.o libpcsxcore/r3000a.o \
-	libpcsxcore/sio.o libpcsxcore/socket.o libpcsxcore/spu.o
+	libpcsxcore/sio.o libpcsxcore/spu.o
 OBJS += libpcsxcore/gte.o libpcsxcore/gte_nf.o libpcsxcore/gte_divider.o
-ifeq ($(WANT_ZLIB),1)
-CFLAGS += -Ideps/zlib
-OBJS += deps/zlib/adler32.o \
-        deps/zlib/compress.o \
-        deps/zlib/crc32.o \
-        deps/zlib/deflate.o \
-        deps/zlib/gzclose.o \
-        deps/zlib/gzlib.o \
-        deps/zlib/gzread.o \
-        deps/zlib/gzwrite.o \
-        deps/zlib/inffast.o \
-        deps/zlib/inflate.o \
-        deps/zlib/inftrees.o \
-        deps/zlib/trees.o \
-        deps/zlib/uncompr.o \
-        deps/zlib/zutil.o
-endif
+#OBJS += libpcsxcore/debug.o libpcsxcore/socket.o libpcsxcore/disr3000a.o
 ifeq "$(ARCH)" "arm"
 OBJS += libpcsxcore/gte_arm.o
 endif
-ifeq "$(HAVE_NEON)" "1"
+ifeq "$(HAVE_NEON_ASM)" "1"
 OBJS += libpcsxcore/gte_neon.o
 endif
 libpcsxcore/psxbios.o: CFLAGS += -Wno-nonnull
 
 # dynarec
-ifeq "$(DYNAREC)" "lightrec"
-CFLAGS += -Ideps/lightning/include -Ideps/lightrec \
-		  -DLIGHTREC -DLIGHTREC_STATIC
-OBJS += libpcsxcore/lightrec/plugin.o
-OBJS += deps/lightning/lib/jit_disasm.o \
-		deps/lightning/lib/jit_memory.o \
-		deps/lightning/lib/jit_names.o \
-		deps/lightning/lib/jit_note.o \
-		deps/lightning/lib/jit_print.o \
-		deps/lightning/lib/jit_size.o \
-		deps/lightning/lib/lightning.o \
-		deps/lightrec/blockcache.o \
-		deps/lightrec/disassembler.o \
-		deps/lightrec/emitter.o \
-		deps/lightrec/interpreter.o \
-		deps/lightrec/lightrec.o \
-		deps/lightrec/memmanager.o \
-		deps/lightrec/optimizer.o \
-		deps/lightrec/regcache.o \
-		deps/lightrec/recompiler.o \
-		deps/lightrec/reaper.o
-ifeq ($(MMAP_WIN32),1)
-CFLAGS += -Ideps/mman
-OBJS += deps/mman/mman.o
-endif
-else ifeq "$(DYNAREC)" "ari64"
-CFLAGS += -DNEW_DYNAREC
-OBJS += libpcsxcore/new_dynarec/backends/psx/emu_if.o \
-		libpcsxcore/new_dynarec/new_dynarec.o \
-		libpcsxcore/new_dynarec/arm/linkage_arm.o \
-		libpcsxcore/new_dynarec/backends/psx/pcsxmem.o
-libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/arm/assem_arm.c \
-	libpcsxcore/new_dynarec/backends/psx/pcsxmem_inline.c
+ifeq "$(USE_DYNAREC)" "1"
+OBJS += libpcsxcore/new_dynarec/new_dynarec.o
+OBJS += libpcsxcore/new_dynarec/pcsxmem.o
+ ifeq "$(ARCH)" "arm"
+ OBJS += libpcsxcore/new_dynarec/linkage_arm.o
+ libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm.c
+ else ifneq (,$(findstring $(ARCH),aarch64 arm64))
+ OBJS += libpcsxcore/new_dynarec/linkage_arm64.o
+ libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/assem_arm64.c
+ else
+ $(error no dynarec support for architecture $(ARCH))
+ endif
 else
-OBJS += libpcsxcore/new_dynarec/backends/psx/emu_if.o
-libpcsxcore/new_dynarec/backends/psx/emu_if.o: CFLAGS += -DDRC_DISABLE
-frontend/libretro.o: CFLAGS += -DDRC_DISABLE
+CFLAGS += -DDRC_DISABLE
 endif
+OBJS += libpcsxcore/new_dynarec/emu_if.o
+libpcsxcore/new_dynarec/new_dynarec.o: libpcsxcore/new_dynarec/pcsxmem_inline.c
 ifdef DRC_DBG
-libpcsxcore/new_dynarec/backends/psx/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64
+libpcsxcore/new_dynarec/emu_if.o: CFLAGS += -D_FILE_OFFSET_BITS=64
 CFLAGS += -DDRC_DBG
 endif
-ifeq "$(DRC_CACHE_BASE)" "1"
-libpcsxcore/new_dynarec/%.o: CFLAGS += -DBASE_ADDR_FIXED=1
-libpcsxcore/new_dynarec/backends/psx/%.o: CFLAGS += -DBASE_ADDR_FIXED=1
-libpcsxcore/new_dynarec/arm/%.o: CFLAGS += -DBASE_ADDR_FIXED=1
+ifeq "$(BASE_ADDR_DYNAMIC)" "1"
+libpcsxcore/new_dynarec/%.o: CFLAGS += -DBASE_ADDR_DYNAMIC=1
 endif
 
 # spu
@@ -175,88 +119,70 @@ endif
 # builtin gpu
 OBJS += plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o
 ifeq "$(BUILTIN_GPU)" "neon"
-CFLAGS += -DGPU_NEON
 OBJS += plugins/gpu_neon/psx_gpu_if.o
-ifeq "$(HAVE_NEON)" "1"
-OBJS += plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o
 plugins/gpu_neon/psx_gpu_if.o: CFLAGS += -DNEON_BUILD -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
-else
-plugins/gpu_neon/psx_gpu_if.o: CFLAGS += -DTEXTURE_CACHE_4BPP -DTEXTURE_CACHE_8BPP
-endif
 plugins/gpu_neon/psx_gpu_if.o: plugins/gpu_neon/psx_gpu/*.c
+frontend/menu.o frontend/plugin_lib.o: CFLAGS += -DBUILTIN_GPU_NEON
+ ifeq "$(HAVE_NEON_ASM)" "1"
+ OBJS += plugins/gpu_neon/psx_gpu/psx_gpu_arm_neon.o
+ else
+ OBJS += plugins/gpu_neon/psx_gpu/psx_gpu_simd.o
+ plugins/gpu_neon/psx_gpu_if.o: CFLAGS += -DSIMD_BUILD
+ plugins/gpu_neon/psx_gpu/psx_gpu_simd.o: CFLAGS += -DSIMD_BUILD
+ endif
 endif
 ifeq "$(BUILTIN_GPU)" "peops"
-CFLAGS += -DGPU_PEOPS
 # note: code is not safe for strict-aliasing? (Castlevania problems)
 plugins/dfxvideo/gpulib_if.o: CFLAGS += -fno-strict-aliasing
 plugins/dfxvideo/gpulib_if.o: plugins/dfxvideo/prim.c plugins/dfxvideo/soft.c
 OBJS += plugins/dfxvideo/gpulib_if.o
-ifeq "$(THREAD_RENDERING)" "1"
-CFLAGS += -DTHREAD_RENDERING
-OBJS += plugins/gpulib/gpulib_thread_if.o
-endif
 endif
 ifeq "$(BUILTIN_GPU)" "unai"
-CFLAGS += -DGPU_UNAI
-CFLAGS += -DUSE_GPULIB=1
-#CFLAGS += -DINLINE="static __inline__"
-#CFLAGS += -Dasm="__asm__ __volatile__"
 OBJS += plugins/gpu_unai/gpulib_if.o
 ifeq "$(ARCH)" "arm"
 OBJS += plugins/gpu_unai/gpu_arm.o
-endif
-ifeq "$(THREAD_RENDERING)" "1"
-CFLAGS += -DTHREAD_RENDERING
-OBJS += plugins/gpulib/gpulib_thread_if.o
 endif
 plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -O3 
 CC_LINK = $(CXX)
 endif
 
+ifeq "$(BUILTIN_GPU)" "senquack"
+OBJS += plugins/gpu_senquack/gpulib_if.o
+ifeq "$(ARCH)" "arm"
+OBJS += plugins/gpu_senquack/gpu_arm.o
+endif
+plugins/gpu_senquack/gpulib_if.o: CFLAGS += -DREARMED -O3 
+CC_LINK = $(CXX)
+endif
+
 # cdrcimg
 OBJS += plugins/cdrcimg/cdrcimg.o
-
-# libchdr
-ifeq "$(HAVE_CHD)" "1"
-CFLAGS += -Ideps/libchdr/include
-CFLAGS += -Ideps/libchdr/include/libchdr
-OBJS += deps/crypto/md5.o
-OBJS += deps/crypto/sha1.o
-OBJS += deps/lzma-16.04/C/Alloc.o
-OBJS += deps/lzma-16.04/C/Bra86.o
-OBJS += deps/lzma-16.04/C/Bra.o
-OBJS += deps/lzma-16.04/C/BraIA64.o
-OBJS += deps/lzma-16.04/C/CpuArch.o
-OBJS += deps/lzma-16.04/C/Delta.o
-OBJS += deps/lzma-16.04/C/LzFind.o
-OBJS += deps/lzma-16.04/C/Lzma86Dec.o
-OBJS += deps/lzma-16.04/C/Lzma86Enc.o
-OBJS += deps/lzma-16.04/C/LzmaDec.o
-OBJS += deps/lzma-16.04/C/LzmaEnc.o
-OBJS += deps/lzma-16.04/C/LzmaLib.o
-OBJS += deps/lzma-16.04/C/Sort.o
-OBJS += deps/libchdr/src/libchdr_bitstream.o
-OBJS += deps/libchdr/src/libchdr_cdrom.o
-OBJS += deps/libchdr/src/libchdr_chd.o
-OBJS += deps/libchdr/src/libchdr_flac.o
-OBJS += deps/libchdr/src/libchdr_huffman.o
-CFLAGS += -Ideps/crypto -Ideps/lzma-16.04/C
-CFLAGS += -DHAVE_CHD -D_7ZIP_ST
-LDFLAGS += -lm
-endif
+#ifeq "$(CHD_SUPPORT)" "1"
+OBJS += libchdr/src/libchdr_bitstream.o
+OBJS += libchdr/src/libchdr_cdrom.o
+OBJS += libchdr/src/libchdr_chd.o
+OBJS += libchdr/src/libchdr_flac.o
+OBJS += libchdr/src/libchdr_huffman.o
+OBJS += libchdr/deps/lzma-19.00/src/Alloc.o libchdr/deps/lzma-19.00/src/Bra86.o libchdr/deps/lzma-19.00/src/BraIA64.o libchdr/deps/lzma-19.00/src/CpuArch.o libchdr/deps/lzma-19.00/src/Delta.o
+OBJS += libchdr/deps/lzma-19.00/src/LzFind.o libchdr/deps/lzma-19.00/src/Lzma86Dec.o libchdr/deps/lzma-19.00/src/LzmaDec.o libchdr/deps/lzma-19.00/src/LzmaEnc.o libchdr/deps/lzma-19.00/src/Sort.o
+CFLAGS += -DHAVE_CHD -Ilibchdr/include
+libpcsxcore/cdriso.o: CFLAGS += -Wno-unused-function
+libchdr/src/%.o: CFLAGS += -Wno-unused -Ilibchdr/deps/lzma-19.00/include
+libchdr/deps/lzma-19.00/src/%.o: CFLAGS += -Wno-unused -D_7ZIP_ST -Ilibchdr/deps/lzma-19.00/include
+#endif
 
 # dfinput
-ifneq "$(PLATFORM)" "libretro"
 OBJS += plugins/dfinput/main.o plugins/dfinput/pad.o plugins/dfinput/guncon.o
-endif
 
 # frontend/gui
 OBJS += frontend/cspace.o
-ifeq "$(HAVE_NEON)" "1"
+ifeq "$(HAVE_NEON_ASM)" "1"
 OBJS += frontend/cspace_neon.o
+frontend/cspace.o: CFLAGS += -DHAVE_bgr555_to_rgb565 -DHAVE_bgr888_to_x
 else
 ifeq "$(ARCH)" "arm"
 OBJS += frontend/cspace_arm.o
+frontend/cspace.o: CFLAGS += -DHAVE_bgr555_to_rgb565
 endif
 endif
 
@@ -296,20 +222,6 @@ frontend/main.o frontend/menu.o: CFLAGS += -include frontend/320240/ui_gp2x.h
 USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
 endif
-ifeq "$(PLATFORM)" "trimui"
-SYSROOT     := $(shell $(CC) --print-sysroot)
-SDL_CFLAGS  := $(shell $(SYSROOT)/usr/bin/sdl-config --cflags)
-SDL_LDFLAGS := $(shell $(SYSROOT)/usr/bin/sdl-config --libs)
-OBJS += frontend/libpicofe/in_sdl.o
-OBJS += frontend/libpicofe/linux/in_evdev.o
-OBJS += frontend/plat_trimui.o frontend/blit320.o
-frontend/main.o frontend/menu.o: CFLAGS += -include frontend/menu_trimui.h
-USE_PLUGIN_LIB = 1
-USE_FRONTEND = 1
-CFLAGS += -DGPULIB_USE_MMAP -DGPU_UNAI_USE_INT_DIV_MULTINV -DMENU_SHOULDER_COMBO -fomit-frame-pointer -ffast-math -ffunction-sections -fsingle-precision-constant
-CFLAGS += $(SDL_CFLAGS) -DTRIMUI
-LDFLAGS += $(SDL_LDFLAGS) -flto -fwhole-program
-endif
 ifeq "$(PLATFORM)" "maemo"
 OBJS += maemo/hildon.o maemo/main.o maemo/maemo_xkb.o frontend/pl_gun_ts.o
 maemo/%.o: maemo/%.c
@@ -321,14 +233,10 @@ LDFLAGS += `pkg-config --libs glib-2.0 libosso dbus-1 hildon-fm-2`
 endif
 ifeq "$(PLATFORM)" "libretro"
 OBJS += frontend/libretro.o
-CFLAGS += -Ilibretro-common/include
 CFLAGS += -DFRONTEND_SUPPORTS_RGB565
-CFLAGS += -DHAVE_LIBRETRO
 
-ifneq ($(DYNAREC),lightrec)
 ifeq ($(MMAP_WIN32),1)
 OBJS += libpcsxcore/memmap_win32.o
-endif
 endif
 endif
 
@@ -336,7 +244,8 @@ ifeq "$(USE_PLUGIN_LIB)" "1"
 OBJS += frontend/plugin_lib.o
 OBJS += frontend/libpicofe/linux/plat.o
 OBJS += frontend/libpicofe/readpng.o frontend/libpicofe/fonts.o
-ifeq "$(HAVE_NEON)" "1"
+frontend/libpicofe/linux/plat.o: CFLAGS += -DNO_HOME_DIR
+ifeq "$(HAVE_NEON_ASM)" "1"
 OBJS += frontend/libpicofe/arm/neon_scale2x.o
 OBJS += frontend/libpicofe/arm/neon_eagle2x.o
 frontend/libpicofe/arm/neon_scale2x.o: CFLAGS += -DDO_BGR_TO_RGB
@@ -371,27 +280,18 @@ libpcsxcore/gte_nf.o: libpcsxcore/gte.c
 	$(CC) -c -o $@ $^ $(CFLAGS) -DFLAGLESS
 
 frontend/revision.h: FORCE
-	@(git describe || echo) | sed -e 's/.*/#define REV "\0"/' > $@_
+	@(git describe --always || echo) | sed -e 's/.*/#define REV "\0"/' > $@_
 	@diff -q $@_ $@ > /dev/null 2>&1 || cp $@_ $@
 	@rm $@_
 
 %.o: %.S
 	$(CC_AS) $(CFLAGS) -c $^ -o $@
 
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c -o $@ $<
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
 target_: $(TARGET)
 
 $(TARGET): $(OBJS)
-ifeq ($(STATIC_LINKING), 1)
-	$(AR) rcs $@ $(OBJS)
-else
 	$(CC_LINK) -o $@ $^ $(LDFLAGS) $(LDLIBS) $(EXTRA_LDFLAGS)
-endif
 
 clean: $(PLAT_CLEAN) clean_plugins
 	$(RM) $(TARGET) $(OBJS) $(TARGET).map frontend/revision.h
@@ -413,9 +313,15 @@ endif
 
 .PHONY: all clean target_ plugins_ clean_plugins FORCE
 
+ifneq "$(PLATFORM)" "pandora"
+ifdef CPATH
+$(warning warning: CPATH is defined)
+endif
+endif
+
 # ----------- release -----------
 
-VER ?= $(shell git describe HEAD)
+VER ?= $(shell git describe --always HEAD)
 
 ifeq "$(PLATFORM)" "generic"
 OUT = pcsx_rearmed_$(VER)
@@ -468,15 +374,4 @@ rel: pcsx $(PLUGINS) \
 	cp ./lib/libbz2.so.1 out/pcsx_rearmed/lib/
 	mkdir out/pcsx_rearmed/bios/
 	cd out && zip -9 -r ../pcsx_rearmed_$(VER)_caanoo.zip *
-endif
-ifeq "$(PLATFORM)" "trimui"
-VER = v1.9
-rel: pcsx $(PLUGINS) \
-		readme.txt COPYING
-	rm -rf out
-	mkdir -p out/pcsx_rearmed/
-	cp -r $^ out/pcsx_rearmed/
-	mkdir out/pcsx_rearmed/lib/
-	mkdir out/pcsx_rearmed/bios/
-	cd out && zip -9 -r ../pcsx_rearmed_$(VER)_trimui.zip *
 endif

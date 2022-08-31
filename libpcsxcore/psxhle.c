@@ -23,12 +23,6 @@
 
 #include "psxhle.h"
 
-#if 0
-#define PSXHLE_LOG SysPrintf
-#else
-#define PSXHLE_LOG(...)
-#endif
-
 static void hleDummy() {
 	psxRegs.pc = psxRegs.GPR.n.ra;
 
@@ -60,10 +54,10 @@ static void hleC0() {
 }
 
 static void hleBootstrap() { // 0xbfc00000
-	PSXHLE_LOG("hleBootstrap\n");
+	SysPrintf("hleBootstrap\n");
 	CheckCdrom();
 	LoadCdrom();
-	PSXHLE_LOG("CdromLabel: \"%s\": PC = %8.8lx (SP = %8.8lx)\n", CdromLabel, psxRegs.pc, psxRegs.GPR.n.sp);
+	SysPrintf("CdromLabel: \"%s\": PC = %8.8lx (SP = %8.8lx)\n", CdromLabel, psxRegs.pc, psxRegs.GPR.n.sp);
 }
 
 typedef struct {                   
@@ -83,7 +77,7 @@ typedef struct {
 static void hleExecRet() {
 	EXEC *header = (EXEC*)PSXM(psxRegs.GPR.n.s0);
 
-	PSXHLE_LOG("ExecRet %x: %x\n", psxRegs.GPR.n.s0, header->ret);
+	SysPrintf("ExecRet %x: %x\n", psxRegs.GPR.n.s0, header->ret);
 
 	psxRegs.GPR.n.ra = header->ret;
 	psxRegs.GPR.n.sp = header->_sp;
@@ -95,7 +89,7 @@ static void hleExecRet() {
 	psxRegs.pc = psxRegs.GPR.n.ra;
 }
 
-void (*psxHLEt[256])() = {
+void (* const psxHLEt[])() = {
 	hleDummy, hleA0, hleB0, hleC0,
 	hleBootstrap, hleExecRet,
 	hleDummy, hleDummy

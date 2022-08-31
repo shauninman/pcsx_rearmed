@@ -12,17 +12,14 @@
 #include <string.h>
 #include <stdlib.h>
 #include <zlib.h>
-#ifndef _WIN32
-#define CALLBACK
-#ifndef NO_DYLIB
+#if !defined(_WIN32) && !defined(NO_DYLIB)
 #include <dlfcn.h>
-#endif
-#else
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 #endif
 
 #include "cdrcimg.h"
+
+#undef CALLBACK
+#define CALLBACK
 
 #define PFX "cdrcimg: "
 #define err(f, ...) fprintf(stderr, PFX f, ##__VA_ARGS__)
@@ -287,7 +284,7 @@ static long CDRinit(void)
 			return -1;
 		}
 	}
-#if !defined(_WIN32) && !defined(NO_DYLIB)
+#ifndef _WIN32
 	if (pBZ2_bzBuffToBuffDecompress == NULL) {
 		void *h = dlopen("/usr/lib/libbz2.so.1", RTLD_LAZY);
 		if (h == NULL)
